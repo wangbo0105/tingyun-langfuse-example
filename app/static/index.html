@@ -1,0 +1,1752 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TingYun Langfuse</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%234f46e5'/><text x='16' y='22' text-anchor='middle' font-family='sans-serif' font-weight='bold' font-size='14' fill='white'>TY</text></svg>" type="image/svg+xml">
+    <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: { extend: { colors: { brand: { 50:'#f0f4ff', 500:'#4f46e5', 600:'#4338ca' } } } }
+        }
+        if (typeof marked !== 'undefined') {
+            marked.setOptions({ breaks: true, gfm: true });
+        }
+    </script>
+    <style>
+        @keyframes fadeIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+        .fade-in { animation: fadeIn 0.2s ease-out }
+        @keyframes fadeInSlow { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+        .fade-in-slow { animation: fadeInSlow 0.5s ease-out }
+        .loader { border:3px solid #333; border-top:3px solid #4f46e5; border-radius:50%; width:16px; height:16px; animation:spin .7s linear infinite; display:inline-block; vertical-align:middle }
+        .loader-slow { border:3px solid #333; border-top:3px solid #a78bfa; border-radius:50%; width:16px; height:16px; animation:spin 2s linear infinite; display:inline-block; vertical-align:middle }
+        @keyframes spin { to{transform:rotate(360deg)} }
+        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+        .cursor-blink::after { content:'▍'; animation:blink 1s step-end infinite; color:#4f46e5 }
+        .scene-card { transition:all .15s ease; cursor:pointer }
+        .scene-card:hover { background-color:#1e293b }
+        .scene-card.active { background-color:#1e293b; border-color:#4f46e5 }
+        select option { background:#1e293b }
+        input[type="range"] { -webkit-appearance:none; background:transparent }
+        input[type="range"]::-webkit-slider-runnable-track { height:4px; background:#374151; border-radius:2px }
+        input[type="range"]::-webkit-slider-thumb { -webkit-appearance:none; width:14px; height:14px; background:#4f46e5; border-radius:50%; margin-top:-5px; cursor:pointer }
+        /* Hide native number spinner (use keyboard arrows / typing instead) */
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button { -webkit-appearance:none; margin:0 }
+        input[type="number"] { -moz-appearance:textfield }
+        .suggest-btn { transition:all .15s ease }
+        .suggest-btn:hover { background-color:#3730a3; border-color:#4f46e5 }
+        .suggest-card { transition:all .15s ease; cursor:pointer; position:relative; overflow:hidden }
+        .suggest-card:hover { border-color:#4f46e5; background:linear-gradient(135deg,rgba(79,70,229,0.08),rgba(79,70,229,0.02)); transform:translateY(-1px) }
+        .suggest-card::before { content:''; position:absolute; left:0; top:0; bottom:0; width:2px; background:linear-gradient(180deg,#4f46e5,#7c3aed); border-radius:2px }
+        .conv-card { transition:all .15s ease; cursor:pointer }
+        .conv-card:hover { background-color:#1e293b }
+        .conv-card.active { background-color:#1e293b; border-color:#4f46e5 }
+        .conv-card .del-btn { opacity:0; transition:opacity .15s ease }
+        .conv-card:hover .del-btn { opacity:1 }
+        .welcome-card { transition:all .2s ease; cursor:pointer }
+        .welcome-card:hover { border-color:#4f46e5; background-color:#1e293b; transform:translateY(-2px) }
+        .step-card { border-left:2px solid }
+        /* Scrollbar */
+        ::-webkit-scrollbar { width:5px; height:5px }
+        ::-webkit-scrollbar-track { background:transparent }
+        ::-webkit-scrollbar-thumb { background:#1f2937; border-radius:4px }
+        ::-webkit-scrollbar-thumb:hover { background:#374151 }
+        * { scrollbar-width:thin; scrollbar-color:#1f2937 transparent }
+        /* Markdown styling inside bubbles */
+        .md-content { font-size:0.875rem; line-height:1.6 }
+        .md-content p { margin:0.4em 0 }
+        .md-content p:first-child { margin-top:0 }
+        .md-content p:last-child { margin-bottom:0 }
+        .md-content h1, .md-content h2, .md-content h3, .md-content h4 { font-weight:600; margin:0.8em 0 0.4em; color:#f3f4f6 }
+        .md-content h1 { font-size:1.25rem }
+        .md-content h2 { font-size:1.125rem }
+        .md-content h3 { font-size:1rem }
+        .md-content ul, .md-content ol { margin:0.4em 0; padding-left:1.5em }
+        .md-content li { margin:0.2em 0 }
+        .md-content code { background:rgba(0,0,0,0.3); color:#fbbf24; padding:0.1em 0.35em; border-radius:0.25rem; font-size:0.85em; font-family:ui-monospace,SFMono-Regular,Menlo,monospace }
+        .md-content pre { background:rgba(0,0,0,0.4); border:1px solid #1f2937; border-radius:0.5rem; padding:0.75rem 1rem; margin:0.5em 0; overflow-x:auto }
+        .md-content pre code { background:transparent; color:#e5e7eb; padding:0; font-size:0.8rem; line-height:1.5 }
+        .md-content blockquote { border-left:3px solid #4f46e5; padding-left:0.75em; margin:0.5em 0; color:#cbd5e1; font-style:italic }
+        .md-content a { color:#818cf8; text-decoration:underline }
+        .md-content table { border-collapse:collapse; margin:0.5em 0; font-size:0.8rem }
+        .md-content th, .md-content td { border:1px solid #374151; padding:0.35em 0.6em; text-align:left }
+        .md-content th { background:rgba(0,0,0,0.3); font-weight:600 }
+        .md-content hr { border:0; border-top:1px solid #1f2937; margin:1em 0 }
+        .md-content strong { color:#fff; font-weight:600 }
+        .md-content em { color:#e5e7eb }
+    </style>
+</head>
+<body class="bg-gray-950 text-gray-100 h-screen flex flex-col overflow-hidden">
+
+<!-- Nav -->
+<nav class="border-b border-gray-800 shrink-0">
+    <div class="px-6 h-12 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <div class="w-7 h-7 bg-brand-500 rounded-lg flex items-center justify-center font-bold text-white text-xs">TY</div>
+            <span class="text-base font-semibold">TingYun Langfuse</span>
+        </div>
+        <a href="https://us.cloud.langfuse.com/" target="_blank"
+           class="flex items-center gap-2 text-xs text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 px-3 py-1.5 rounded-lg transition">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+            Langfuse Cloud
+        </a>
+    </div>
+</nav>
+
+<div class="flex-1 flex overflow-hidden">
+
+    <!-- Left: scenes -->
+    <aside class="w-64 shrink-0 border-r border-gray-800 flex flex-col p-3 gap-1.5">
+        <p class="text-xs text-gray-500 uppercase tracking-wider mb-1 px-1">Scenes</p>
+        <div class="flex-1 overflow-y-auto space-y-1.5">
+            <div class="scene-card border border-gray-800 rounded-lg p-3 flex items-center gap-2.5" data-scene="chat" onclick="selectScene('chat')">
+                <div class="w-8 h-8 bg-blue-500/20 text-blue-400 rounded-md flex items-center justify-center text-sm shrink-0">💬</div>
+                <div class="min-w-0"><h3 class="font-medium text-white text-sm leading-tight">Chat</h3><p class="text-[10px] text-gray-500">Generation</p></div>
+            </div>
+            <div class="scene-card border border-gray-800 rounded-lg p-3 flex items-center gap-2.5" data-scene="agent" onclick="selectScene('agent')">
+                <div class="w-8 h-8 bg-purple-500/20 text-purple-400 rounded-md flex items-center justify-center text-sm shrink-0">🤖</div>
+                <div class="min-w-0"><h3 class="font-medium text-white text-sm leading-tight">Agent</h3><p class="text-[10px] text-gray-500">Agent > Generation</p></div>
+            </div>
+            <div class="scene-card border border-gray-800 rounded-lg p-3 flex items-center gap-2.5" data-scene="tools" onclick="selectScene('tools')">
+                <div class="w-8 h-8 bg-green-500/20 text-green-400 rounded-md flex items-center justify-center text-sm shrink-0">🔗</div>
+                <div class="min-w-0"><h3 class="font-medium text-white text-sm leading-tight">Chain</h3><p class="text-[10px] text-gray-500">Chain + Tool</p></div>
+            </div>
+            <div class="scene-card border border-gray-800 rounded-lg p-3 flex items-center gap-2.5" data-scene="embedding" onclick="selectScene('embedding')">
+                <div class="w-8 h-8 bg-orange-500/20 text-orange-400 rounded-md flex items-center justify-center text-sm shrink-0">📐</div>
+                <div class="min-w-0"><h3 class="font-medium text-white text-sm leading-tight">Embedding</h3><p class="text-[10px] text-gray-500">Generation</p></div>
+            </div>
+        </div>
+        <button onclick="toggleConfigPanel()" class="mt-2 flex items-center gap-2 px-3 py-2 text-xs text-gray-400 hover:text-white bg-gray-900 hover:bg-gray-800 border border-gray-800 rounded-lg transition" title="环境配置">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+            环境配置
+        </button>
+    </aside>
+
+    <!-- Center -->
+    <div class="flex-1 flex flex-col overflow-hidden">
+
+        <!-- Center: quick-cards + chat -->
+        <div class="flex-1 flex overflow-hidden">
+            <!-- Quick cards sidebar (hidden by default) -->
+            <div id="quick-panel" class="w-72 shrink-0 border-r border-gray-800 overflow-y-auto p-3 hidden">
+                <p class="text-[10px] text-gray-500 uppercase tracking-wider mb-3">快捷操作</p>
+                <div id="quick-panel-inner" class="space-y-2"></div>
+            </div>
+
+            <!-- Chat area -->
+            <div class="flex-1 flex flex-col overflow-hidden">
+                <div id="chat-area" class="flex-1 overflow-y-auto px-5 py-4">
+                    <div id="output" class="max-w-4xl mx-auto space-y-5"></div>
+                    <div id="welcome" class="max-w-3xl mx-auto"></div>
+                </div>
+
+                <!-- Input bar (bottom) -->
+                <div id="input-bar" class="shrink-0 border-t border-gray-800 bg-gray-950 px-5 py-3 space-y-2">
+                    <div id="row-system" class="hidden">
+                        <input id="cfg-system_prompt" type="text" placeholder="System Prompt"
+                            class="w-full bg-gray-800/60 border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-brand-500">
+                    </div>
+                    <div class="relative">
+                        <textarea id="detail-input" rows="1"
+                            class="w-full bg-gray-800 border border-gray-700 rounded-xl pl-4 pr-20 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-brand-500 resize-none leading-snug"></textarea>
+                        <div class="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
+                            <button onclick="clearInput()" class="text-gray-600 hover:text-gray-400 text-[10px] px-1 transition" title="清空输入">清空</button>
+                            <button id="detail-btn" onclick="handleSendOrStop()" class="bg-brand-500 hover:bg-brand-600 text-white rounded-lg w-8 h-8 flex items-center justify-center transition" title="发送">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M12 5l7 7-7 7"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div><!-- end chat col -->
+        </div><!-- end center flex row -->
+    </div><!-- end outer flex col -->
+    <aside class="w-72 shrink-0 border-l border-gray-800 flex flex-col overflow-hidden">
+        <div class="shrink-0 p-3 space-y-3 border-b border-gray-800">
+            <div>
+                <label class="text-[10px] text-gray-500 mb-1 block uppercase tracking-wider">Model</label>
+                <select id="cfg-model"
+                    class="w-full bg-gray-800 border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-brand-500">
+                </select>
+            </div>
+            <div id="param-temperature">
+                <div class="flex justify-between mb-0.5"><span class="text-[10px] text-gray-500">Temperature</span><span id="val-temp" class="text-[10px] text-gray-400 font-mono">0.7</span></div>
+                <input id="cfg-temperature" type="range" min="0" max="2" step="0.1" value="0.7" class="w-full">
+            </div>
+            <div id="param-top_p">
+                <div class="flex justify-between mb-0.5"><span class="text-[10px] text-gray-500">Top P</span><span id="val-top_p" class="text-[10px] text-gray-400 font-mono">1.0</span></div>
+                <input id="cfg-top_p" type="range" min="0" max="1" step="0.05" value="1.0" class="w-full">
+            </div>
+            <div id="param-max_tokens">
+                <label class="text-[10px] text-gray-500 mb-0.5 block">Max Tokens</label>
+                <input id="cfg-max_tokens" type="number" value="2048" min="1"
+                    class="w-full bg-gray-800/60 border border-gray-700 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-brand-500">
+            </div>
+            <div id="param-dimensions" class="hidden">
+                <label class="text-[10px] text-gray-500 mb-0.5 block">Dimensions</label>
+                <input id="cfg-dimensions" type="number" value="1024" min="64" max="8192" step="64"
+                    class="w-full bg-gray-800/60 border border-gray-700 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-brand-500">
+            </div>
+        </div>
+        <div class="flex-1 flex flex-col overflow-hidden">
+            <div class="shrink-0 px-3 pt-3 pb-1.5 flex items-center justify-between">
+                <div class="flex items-baseline gap-1.5">
+                    <span class="text-[10px] text-gray-500 uppercase tracking-wider">对话列表</span>
+                    <span id="conv-count" class="text-[10px] text-gray-600">0</span>
+                </div>
+                <button onclick="newCurrentConv()" class="flex items-center gap-1 text-[10px] text-brand-400 hover:text-white bg-brand-500/10 hover:bg-brand-500/30 border border-brand-500/30 hover:border-brand-500 px-2 py-1 rounded transition">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                    新建
+                </button>
+            </div>
+            <div id="conv-list" class="flex-1 overflow-y-auto px-3 pb-3 space-y-1.5">
+                <p class="text-[10px] text-gray-600 px-1 pt-2">暂无对话记录</p>
+            </div>
+        </div>
+    </aside>
+</div>
+
+<!-- Footer -->
+<footer class="shrink-0 border-t border-gray-800 bg-gray-950 px-6 py-2.5 flex items-center justify-between">
+    <span class="text-[10px] text-gray-600">TingYun Langfuse 演示项目</span>
+    <span class="text-[10px] text-gray-600">❯ Powered by <a href="https://www.tingyun.com" target="_blank" class="text-brand-400 hover:text-brand-300 transition">TingYun</a> & Agent Team</span>
+</footer>
+
+<!-- Config Panel Overlay -->
+<div id="config-overlay" class="fixed inset-0 bg-black/50 z-40 hidden" onclick="toggleConfigPanel()"></div>
+<div id="config-panel" class="fixed left-0 top-0 bottom-0 w-80 bg-gray-950 border-r border-gray-800 z-50 flex flex-col transform -translate-x-full transition-transform duration-200">
+    <div class="flex items-center justify-between px-4 py-3 border-b border-gray-800">
+        <h2 class="text-sm font-semibold text-white">环境配置</h2>
+        <button onclick="toggleConfigPanel()" class="text-gray-400 hover:text-white transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+    </div>
+    <div id="config-fields" class="flex-1 overflow-y-auto p-4 space-y-3"></div>
+    <div class="px-4 py-3 border-t border-gray-800 flex items-center gap-2">
+        <button onclick="saveConfig()" class="flex-1 bg-brand-500 hover:bg-brand-600 text-white text-xs font-medium py-2 rounded-lg transition">保存配置</button>
+        <button onclick="toggleConfigPanel()" class="flex-1 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs py-2 rounded-lg transition">取消</button>
+    </div>
+    <div id="config-toast" class="hidden px-4 py-2 text-xs text-green-400 bg-green-500/10 border-t border-green-500/20 text-center"></div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+
+const SCENES = {
+    chat: {
+        title: 'Chat', color: 'blue', btnText: '发送', placeholder: '输入消息...',
+        stream: true, showSystem: true, showParams: true, showDimensions: false,
+        defaultInput: '',
+        models: ['', 'qwen3.5-plus', 'qwen-max', 'qwen-plus', 'qwen-turbo', 'qwen-long', 'qwen-vl-max'],
+        defaultModel: 'qwen3.5-plus',
+        botAvatarCls: 'bg-blue-500/20 text-blue-300 border border-blue-500/30',
+
+        url: '/api/chat/stream',
+        buildBody: v => ({
+            message: v, model: $('cfg-model').value || null,
+            system_prompt: $('cfg-system_prompt').value || null,
+            temperature: parseFloat($('cfg-temperature').value),
+            max_tokens: $('cfg-max_tokens').value ? parseInt($('cfg-max_tokens').value) : null,
+            top_p: parseFloat($('cfg-top_p').value),
+        }),
+        welcome: {
+            icon: '💬', iconBg: 'bg-blue-500/20',
+            title: 'TingYun Langfuse Playground',
+            desc: '实时流式响应，逐字呈现模型的思考轨迹。挑选一个话题，开启对话。',
+            cards: [
+                {
+                    tag: '银行', tagCls: 'bg-blue-500/15 text-blue-300',
+                    preview: '银行业务智能分析与产品设计',
+                    system_prompt: '你是一位资深银行产品经理和风控专家，精通零售银行、对公业务、风控合规等领域。请用专业但通俗的中文回答，给出可落地的方案和建议。',
+                    messages: [
+                        '一家城商行计划推出面向中小微企业的线上信用贷款产品，目标客群为年营收500万至5000万的制造型企业，请设计完整的产品方案',
+                        '某股份制银行的信用卡业务连续3个月不良率上升至2.8%，请分析可能的原因并给出风险化解方案',
+                        '一家农商行希望搭建手机银行App的智能投顾模块，服务县域中老年客户群体，请规划产品功能和适老化设计',
+                        '央行下调LPR利率后，某银行的个人住房贷款提前还款量激增了40%，请分析对银行净息差的影响并提出应对策略',
+                        '一家城商行计划开展供应链金融业务，核心企业为当地大型钢铁集团，请设计围绕上下游的融资产品方案',
+                        '某银行发现其手机银行月活用户持续下降，请分析可能的原因并制定用户激活和留存策略',
+                        '一家银行计划推出面向高净值客户的家族信托服务，起步门槛1000万，请设计服务内容和营销获客方案',
+                        '某银行的柜面业务量逐年下降，计划关闭30%的物理网点并转型为轻型网点，请制定过渡方案',
+                        '一家区域性银行计划接入数字人民币运营，请分析对现有支付结算业务的影响并提出实施路径',
+                        '某银行信用卡中心希望利用AI模型实现精准营销，目标是将新客获客成本降低20%，请设计数据和模型方案',
+                        '某银行的对公存款业务增长乏力，请分析当前市场环境下对公存款的竞争格局和获客策略',
+                        '一家民营银行计划推出智能存款产品，希望实现活期便利和定期收益的平衡，请设计方案',
+                        '某银行的风控系统误报率过高，导致正常交易被频繁拦截，请分析优化方向',
+                        '一家银行计划搭建开放银行平台，向第三方提供API服务，请设计技术架构和商业模式',
+                        '某银行个人贷款审批流程平均耗时5天，客户投诉率居高不下，请设计流程优化方案',
+                        '一家村镇银行希望引入RPA技术提升运营效率，请梳理适用场景和实施优先级',
+                        '某银行发现老年客户群体在手机银行上的操作流失率高达60%，请设计适老化改造方案',
+                        '一家城商行计划与互联网平台合作发行联名信用卡，请设计合作模式和产品权益方案',
+                        '某银行的国际业务部计划推出跨境电商一站式金融服务，请设计产品矩阵',
+                        '一家银行计划建设数据中台实现全行数据资产化管理，请制定分阶段建设路线',
+                    ],
+                },
+                {
+                    tag: '汽车', tagCls: 'bg-purple-500/15 text-purple-300',
+                    preview: '新能源汽车市场策略与技术趋势',
+                    system_prompt: '你是一位资深汽车行业分析师和营销专家，精通新能源汽车、智能驾驶、品牌营销等领域。请用专业但通俗的中文回答，结合市场数据和行业趋势进行分析。',
+                    messages: [
+                        '一家新能源车企准备推出一款定位15-20万价格区间的纯电SUV，目标用户是25-35岁年轻家庭，请制定上市营销策略',
+                        '某新能源品牌发现自己的800V快充技术用户感知度很低，请分析原因并制定技术营销传播方案',
+                        '2025年中国新能源汽车渗透率预计超过50%，请分析对传统合资车企的影响以及他们的转型策略',
+                        '一家造车新势力计划在欧洲市场推出右舵版车型，请分析进入策略、合规要求和本地化营销方案',
+                        '某车企的智能驾驶团队在城区NOA落地中遇到corner case泛化难题，请分析技术瓶颈和可能的突破方向',
+                        '一家传统车企旗下新能源子品牌月销量持续低迷，请诊断品牌定位和渠道策略中的问题并给出改进建议',
+                        '某新能源车企计划推出换电服务网络，请分析商业模式可行性、选址策略和与蔚来换电的差异化竞争方案',
+                        '一家汽车集团计划将旗下燃油车经销商体系转型为新能源销售渠道，请制定转型方案和利益协调机制',
+                        '某MPV车型希望定位高端商务出行市场，竞品为别克GL8和腾势D9，请制定差异化产品定位和营销方案',
+                        '一家车企计划在车载系统中引入大模型语音助手，请分析用户场景需求和技术架构方案',
+                        '某新能源车企面临电池原材料价格波动，请制定供应链风险管理和成本控制策略',
+                        '一家车企计划推出Robotaxi服务，首批在两个一线城市试运营100辆车，请设计运营方案',
+                        '某插电混动车型在三四线城市的接受度远低于纯电车型，请分析原因并制定下沉市场策略',
+                        '一家车企的用户App日活率不足5%，请设计从工具App到生活方式平台的升级方案',
+                        '某新能源车企计划打造用户共创社区，请设计社区运营体系和用户激励方案',
+                        '一家传统豪华品牌计划推出纯电子品牌，请分析品牌命名、定位和与母品牌的区隔策略',
+                        '某车企的OTA升级推送后收到大量用户投诉，请分析可能的问题并制定危机公关方案',
+                        '一家新能源车企计划在商场开设体验店，请设计选址标准、空间布局和转化漏斗优化方案',
+                        '某车型的智能座舱用户满意度调查得分偏低，请分析改进方向并设计下一代座舱方案',
+                        '一家车企计划推出车电分离销售模式，请分析金融方案设计和用户接受度提升策略',
+                    ],
+                },
+                {
+                    tag: '技术', tagCls: 'bg-green-500/15 text-green-300',
+                    preview: '系统架构设计与技术方案评审',
+                    system_prompt: '你是一位资深架构师和技术Leader，精通分布式系统、云原生、高并发架构设计。请用专业但通俗的中文回答，给出具体的技术方案和架构建议。',
+                    messages: [
+                        '一个日活100万的电商App需要进行微服务架构改造，当前是单体架构，请制定渐进式拆分方案',
+                        '某互联网公司的核心交易系统在双十一期间出现数据库连接池耗尽，请分析原因并设计高可用改造方案',
+                        '一个SaaS平台需要设计多租户数据隔离方案，租户规模预计超过10万家，请对比不同隔离级别的优劣',
+                        '某团队计划将单体应用迁移到Kubernetes，当前有50+个微服务，请制定容器化改造和CI/CD流水线方案',
+                        '一个内容社区App的推荐系统需要从规则引擎升级为深度学习模型，请设计技术架构和A/B测试方案',
+                        '某在线教育平台的直播课堂系统频繁出现卡顿和延迟，请分析可能的瓶颈并优化方案',
+                        '一家金融科技公司需要设计一套实时风控决策引擎，QPS要求达到10万，请给出技术选型和架构设计',
+                        '某公司的API网关在流量高峰时频繁超时，当前使用Nginx反向代理，请设计可水平扩展的网关架构',
+                        '一个社交App需要设计消息系统，要求支持单聊、群聊和已读回执，日活用户500万，请设计技术方案',
+                        '某团队计划引入可观测性体系，当前只有基础日志，请设计从Metrics、Logs到Traces的完整建设路径',
+                        '一个电商平台的商品搜索系统响应时间从200ms退化到2s，请排查性能瓶颈并优化',
+                        '某公司的Redis集群频繁出现缓存雪崩，导致数据库被击穿，请设计全面的缓存防护方案',
+                        '一个物联网平台需要接入100万台设备，每秒产生50万条数据，请设计消息队列和数据存储方案',
+                        '某团队的GitLab CI构建时间从5分钟增长到40分钟，请分析原因并优化流水线',
+                        '一个在线协作工具需要实现多人实时编辑功能，请对比OT和CRDT方案的优劣',
+                        '某公司的微服务之间调用链路复杂，平均一个请求涉及15个服务，请设计全链路压测方案',
+                        '一个短视频App需要搭建内容审核系统，日处理量1000万条，请设计AI+人工审核的混合方案',
+                        '某团队的MySQL单表数据量达到5亿行，查询性能严重下降，请设计分库分表和数据归档方案',
+                        '一个支付系统需要保证分布式事务的最终一致性，请对比Saga、TCC和本地消息表方案',
+                        '某公司计划从自建机房迁移到多云架构，请制定迁移策略和数据同步方案',
+                    ],
+                },
+                {
+                    tag: '营销', tagCls: 'bg-orange-500/15 text-orange-300',
+                    preview: '品牌营销策略与增长方案设计',
+                    system_prompt: '你是一位资深品牌营销顾问和增长专家，精通品牌策略、数字营销、社交媒体运营等领域。请用专业但通俗的中文回答，给出可落地的执行方案。',
+                    messages: [
+                        '一个国产新锐护肤品牌计划进入东南亚市场，预算500万，目标6个月内月GMV破百万，请制定市场进入策略',
+                        '某新消费品牌完成B轮融资后需要快速做大规模，请设计从月销百万到月销千万的增长飞轮模型',
+                        '一家连锁咖啡品牌计划在二线城市开出50家门店，请制定选址策略和开业营销方案',
+                        '某国产运动品牌签约了一位国际顶级运动员作为代言人，请策划全渠道品牌营销战役',
+                        '一个DTC家具品牌的私域复购率只有8%，请分析原因并设计用户生命周期运营方案',
+                        '某母婴品牌希望在小红书打造爆款内容，预算100万，请制定KOL种草和内容营销策略',
+                        '一家本地生活服务平台计划通过短视频获取商家线索，请设计内容策略和投放优化方案',
+                        '某高端零食品牌准备进军礼品市场，主攻企业团购和企业定制，请制定B2B营销策略',
+                        '一个潮玩品牌计划通过IP联名扩大用户圈层，请设计联名合作策略和限量发售营销方案',
+                        '某教育科技公司获客成本持续上升，当前CPA超过800元，请分析原因并设计降本增效的获客策略',
+                        '一个国产美妆品牌在抖音的自播直播间转化率只有0.5%，请分析原因并优化直播话术和货盘策略',
+                        '某食品品牌计划推出面向Z世代的子品牌，请设计品牌定位、视觉体系和首发产品线',
+                        '一家宠物食品公司希望打造科学养宠内容IP，请设计内容矩阵和商业变现路径',
+                        '某家电品牌的新品发布会在社交媒体上反响平平，请分析失败原因并制定二次传播方案',
+                        '一个文旅目的地计划在抖音和小红书做内容种草，年预算200万，请制定四季营销日历',
+                        '某跨境品牌计划在美国市场通过Amazon和独立站双渠道运营，请设计渠道协同和定价策略',
+                        '一个新茶饮品牌希望在写字楼场景做精准投放，请设计LBS营销和办公室地推方案',
+                        '某老字号品牌希望触达年轻消费者，请设计品牌年轻化策略和跨界合作方案',
+                        '一家SaaS公司计划通过内容营销获取ToB客户，请设计从白皮书到Demo转化的完整获客漏斗',
+                        '某健康食品品牌计划在视频号做直播带货，请分析视频号生态特征并制定起号策略',
+                    ],
+                },
+            ],
+        },
+    },
+    agent: {
+        title: 'Agent', color: 'purple', btnText: '运行', placeholder: '输入问题...',
+        stream: true, showSystem: false, showParams: true, showDimensions: false,
+        defaultInput: '',
+        models: ['', 'qwen3.5-plus', 'qwen-max', 'qwen-plus', 'qwen-turbo', 'qwen-long', 'qwen-vl-max'],
+        defaultModel: 'qwen3.5-plus',
+        botAvatarCls: 'bg-purple-500/20 text-purple-300 border border-purple-500/30',
+        url: '/api/agent/stream',
+        buildBody: v => ({
+            query: v, model: $('cfg-model').value || null,
+            temperature: parseFloat($('cfg-temperature').value),
+            top_p: parseFloat($('cfg-top_p').value),
+        }),
+        welcome: {
+            icon: '🤖', iconBg: 'bg-purple-500/20',
+            title: 'Agent 多步推理',
+            desc: '拆解意图、检索知识、组织回答 —— 观察模型如何像人一样多步思考。',
+            cards: [
+                { tag: '科研', tagCls: 'bg-blue-500/15 text-blue-300', text: '请帮我分析CRISPR基因编辑技术在罕见病治疗中的最新进展', preview: 'CRISPR 基因编辑在罕见病治疗中的最新进展分析' },
+                { tag: '架构', tagCls: 'bg-green-500/15 text-green-300', text: '设计一个支持百万级并发用户的实时弹幕系统，要求延迟低于200ms', preview: '百万级并发实时弹幕系统的架构设计方案' },
+                { tag: '商业', tagCls: 'bg-purple-500/15 text-purple-300', text: '一家 ARR 5000 万的 B2B SaaS 公司计划开拓东南亚市场，请分析市场进入策略', preview: 'B2B SaaS 企业出海东南亚的市场策略分析' },
+                { tag: '伦理', tagCls: 'bg-orange-500/15 text-orange-300', text: '自动驾驶在不可避免的碰撞场景中应该如何做道德决策？请从多个哲学视角分析', preview: '自动驾驶道德决策的多哲学视角分析' },
+            ],
+        },
+    },
+    tools: {
+        title: 'Tools', color: 'green', btnText: '调用', placeholder: '输入问题...',
+        stream: false, showSystem: false, showParams: true, showDimensions: false,
+        defaultInput: '',
+        models: ['', 'qwen3.5-plus', 'qwen-max', 'qwen-plus', 'qwen-turbo', 'qwen-long', 'qwen-vl-max'],
+        defaultModel: 'qwen3.5-plus',
+        botAvatarCls: 'bg-green-500/20 text-green-300 border border-green-500/30',
+        url: '/api/tools',
+        buildBody: v => ({
+            query: v, model: $('cfg-model').value || null,
+            temperature: parseFloat($('cfg-temperature').value),
+            top_p: parseFloat($('cfg-top_p').value),
+        }),
+        welcome: {
+            icon: '🔗', iconBg: 'bg-green-500/20',
+            title: 'Chain + Tool 函数调用',
+            desc: 'Chain 编排工具调用链路，模型自主决策执行，延伸能力边界。',
+            cards: [
+                {
+                    tag: '天气', tagCls: 'bg-blue-500/15 text-blue-300',
+                    preview: '查询任意城市的实时天气状况',
+                    template: '查一下{location}今天的天气怎么样',
+                    params: [
+                        { key: 'location', label: '城市', placeholder: '如：北京、东京', default: '北京' },
+                    ],
+                },
+                {
+                    tag: '计算', tagCls: 'bg-green-500/15 text-green-300',
+                    preview: '快速求解任意数学表达式',
+                    template: '帮我算一下{expression}等于多少',
+                    params: [
+                        { key: 'expression', label: '表达式', placeholder: '如：(15*28+120)/6', default: '(15*28+120)/6' },
+                    ],
+                },
+                {
+                    tag: '时区', tagCls: 'bg-purple-500/15 text-purple-300',
+                    preview: '查询全球各时区的当前时间',
+                    template: '请帮我查一下{city}现在几点了',
+                    params: [
+                        { key: 'city', label: '城市', default: 'Asia/Shanghai', options: [
+                            { v: 'Asia/Shanghai', t: '北京' }, { v: 'Asia/Tokyo', t: '东京' },
+                            { v: 'Asia/Seoul', t: '首尔' }, { v: 'Asia/Singapore', t: '新加坡' },
+                            { v: 'Asia/Kolkata', t: '孟买' }, { v: 'Asia/Dubai', t: '迪拜' },
+                            { v: 'Europe/London', t: '伦敦' }, { v: 'Europe/Paris', t: '巴黎' },
+                            { v: 'Europe/Berlin', t: '柏林' }, { v: 'Europe/Moscow', t: '莫斯科' },
+                            { v: 'America/New_York', t: '纽约' }, { v: 'America/Chicago', t: '芝加哥' },
+                            { v: 'America/Los_Angeles', t: '洛杉矶' }, { v: 'America/Sao_Paulo', t: '圣保罗' },
+                            { v: 'Australia/Sydney', t: '悉尼' }, { v: 'Pacific/Auckland', t: '奥克兰' },
+                        ] },
+                    ],
+                },
+                {
+                    tag: '汇率', tagCls: 'bg-orange-500/15 text-orange-300',
+                    preview: '多币种间的实时汇率换算',
+                    template: '请帮我换算一下{amount} {from_currency}等于多少{to_currency}',
+                    params: [
+                        { key: 'amount', label: '金额', placeholder: '如：1000', default: '1000' },
+                        { key: 'from_currency', label: '源币种', default: 'USD', options: [
+                            { v: 'CNY', t: 'CNY 人民币' }, { v: 'USD', t: 'USD 美元' },
+                            { v: 'EUR', t: 'EUR 欧元' }, { v: 'JPY', t: 'JPY 日元' },
+                            { v: 'GBP', t: 'GBP 英镑' }, { v: 'HKD', t: 'HKD 港币' },
+                            { v: 'KRW', t: 'KRW 韩元' },
+                        ] },
+                        { key: 'to_currency', label: '目标币种', default: 'CNY', options: [
+                            { v: 'CNY', t: 'CNY 人民币' }, { v: 'USD', t: 'USD 美元' },
+                            { v: 'EUR', t: 'EUR 欧元' }, { v: 'JPY', t: 'JPY 日元' },
+                            { v: 'GBP', t: 'GBP 英镑' }, { v: 'HKD', t: 'HKD 港币' },
+                            { v: 'KRW', t: 'KRW 韩元' },
+                        ] },
+                    ],
+                },
+            ],
+        },
+    },
+    embedding: {
+        title: 'Embedding', color: 'orange', btnText: '生成', placeholder: '输入文本...',
+        stream: false, showSystem: false, showParams: false, showDimensions: true,
+        defaultInput: 'TingYun Langfuse 是一个基于 Langfuse 的 LLM 应用可观测性演示平台。',
+        models: ['text-embedding-v1', 'text-embedding-v2', 'text-embedding-v3', 'text-embedding-v4'],
+        defaultModel: 'text-embedding-v3',
+        botAvatarCls: 'bg-orange-500/20 text-orange-300 border border-orange-500/30',
+        url: '/api/embedding',
+        buildBody: v => ({
+            text: v,
+            model: $('cfg-model').value || null,
+            dimensions: $('cfg-dimensions').value ? parseInt($('cfg-dimensions').value) : null,
+        }),
+        welcome: {
+            icon: '📐', iconBg: 'bg-orange-500/20',
+            title: '文本向量化',
+            desc: '将文字映射为高维向量，在数学空间中捕捉语义的细微差异。',
+            cards: [
+                { tag: 'Python', tagCls: 'bg-blue-500/15 text-blue-300', preview: 'Python 注解最佳实践文档', isMarkdown: true, text: [
+                    '# 注解最佳实践',
+                    '',
+                    '**作者：** Larry Hastings',
+                    '',
+                    '## 摘要',
+                    '',
+                    '本文档旨在概括与注解字典打交道的最佳实践。查看 Python 对象的 `__annotations__` 的代码应遵循下面的准则。',
+                    '',
+                    '本文档按四部分组织：',
+                    '',
+                    '1. 在 3.10 及更高版本的 Python 中查看对象注解的最佳实践',
+                    '2. 在 3.9 及更低版本的 Python 中查看对象注解的最佳实践',
+                    '3. 其它一些适于任何版本的 Python 的 `__annotations__` 的最佳实践',
+                    '4. `__annotations__` 的一些"坑"',
+                    '',
+                    '> 本文是 `__annotations__` 的文档，不是注解的用法。如果在寻找如何使用"类型提示"，请参阅 `typing` 模块。',
+                    '',
+                    '## 在 3.10 及更高版本的 Python 中访问对象的注解字典',
+                    '',
+                    'Python 3.10 在标准库中加入了一个新函数：`inspect.get_annotations()`。在 Python 3.10 至 3.13 版中，调用该函数是访问任何支持注解的对象的注解字典的**最佳实践**。该函数还能为你"反字符串化"已被字符串化的注解。',
+                    '',
+                    '在 Python 3.14 中，有一个新的 `annotationlib` 模块，具有处理注解的功能。这包括 `annotationlib.get_annotations()` 函数，它取代了 `inspect.get_annotations()`。',
+                    '',
+                    '不用 `inspect.get_annotations()` 也可以手动访问 `__annotations__` 这一数据成员。该方法的最佳实践在 Python 3.10 中也发生了变化：从 Python 3.10 开始，对于 Python 函数、类和模块，`o.__annotations__` **保证**会正常工作。只要你确信所检查的对象是这三种之一，你便可以用 `o.__annotations__` 获取该对象的注解字典。',
+                    '',
+                    '不过，其它类型的可调用对象可不一定定义了 `__annotations__` 属性，就比如说，`functools.partial()` 创建的可调用对象。当访问某个未知对象的 `__annotations__` 时，3.10 及更高版本的 Python 中的最佳实践是用三个参数去调用 `getattr()`，像 `getattr(o, \'__annotations__\', None)` 这样。',
+                    '',
+                    '| Python 版本 | 行为变化 |',
+                    '|---|---|',
+                    '| 3.10 之前 | 父类定义了注解的子类会返回父类的 `__annotations__` |',
+                    '| 3.10+ | 这样的子类的注解是个空字典 |',
+                ].join('\n') },
+                { tag: '古诗词', tagCls: 'bg-green-500/15 text-green-300', text: '春江潮水连海平，海上明月共潮生。\n滟滟随波千万里，何处春江无月明！\n江流宛转绕芳甸，月照花林皆似霰。\n空里流霜不觉飞，汀上白沙看不见。\n江天一色无纤尘，皎皎空中孤月轮。\n江畔何人初见月？江月何年初照人？\n人生代代无穷已，江月年年望相似。\n不知江月待何人，但见长江送流水。', preview: '张若虚《春江花月夜》', isPoem: true },
+                { tag: '代码', tagCls: 'bg-purple-500/15 text-purple-300', text: 'def quicksort(arr):\n    if len(arr) <= 1:\n        return arr\n    pivot = arr[len(arr) // 2]\n    return quicksort([x for x in arr if x < pivot]) + [pivot] + quicksort([x for x in arr if x > pivot])', preview: '代码片段：Python 快速排序算法实现' },
+                { tag: '歌词', tagCls: 'bg-orange-500/15 text-orange-300', text: '夜空中最亮的星，能否听清\n那仰望的人，心底的孤独和叹息\n夜空中最亮的星，能否记起\n曾与我同行，消失在风里的身影\n我祈祷拥有一颗透明的心灵\n和会流泪的眼睛\n给我再去相信的勇气\n越过谎言去拥抱你', preview: '逃跑计划 — 夜空中最亮的星', isLyrics: true },
+            ],
+        },
+    },
+};
+
+// State
+let current = 'chat';
+let welcomeVisible = true;
+let msgCounter = 0;
+let convCounter = 0;
+const conversations = { chat: [], agent: [], tools: [], embedding: [] };
+const currentConvId = { chat: null, agent: null, tools: null, embedding: null };
+const selectedModel = { chat: 'qwen3.5-plus', agent: 'qwen3.5-plus', tools: 'qwen3.5-plus', embedding: 'text-embedding-v3' };
+
+$('cfg-model').addEventListener('change', function() { if (current) selectedModel[current] = this.value; });
+
+// ---- Markdown ----
+function md(text) {
+    if (!text) return '';
+    if (typeof marked !== 'undefined') {
+        try { return marked.parse(text); } catch (e) { return esc(text); }
+    }
+    return esc(text);
+}
+
+// ---- Welcome ----
+function renderWelcome(sceneType) {
+    const s = SCENES[sceneType];
+    const el = $('welcome');
+    if (!s.welcome) { el.style.display = 'none'; return; }
+    const w = s.welcome;
+    el.style.display = '';
+    el.innerHTML = `
+        <div class="flex flex-col items-center pt-16 pb-8 fade-in-slow">
+            <div class="w-14 h-14 ${w.iconBg} rounded-2xl flex items-center justify-center text-3xl mb-5">${w.icon}</div>
+            <h2 class="text-2xl font-bold text-white mb-2">${w.title}</h2>
+            <p class="text-sm text-gray-400 mb-10 text-center max-w-md">${w.desc}</p>
+        </div>
+        <div class="grid grid-cols-2 gap-3 fade-in-slow" style="animation-delay:0.1s">
+            ${w.cards.map((c, i) => {
+                if (c.params) {
+                    return `
+                    <div class="welcome-card bg-gray-900 border border-gray-800 rounded-xl p-4" data-tool-idx="${i}">
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="text-xs ${c.tagCls} px-2 py-0.5 rounded">${c.tag}</span>
+                        </div>
+                        <p class="text-xs text-gray-400 mb-3">${esc(c.preview)}</p>
+                        <div class="space-y-2 mb-3">
+                            ${c.params.map(p => `
+                                <div class="flex items-center gap-2">
+                                    <label class="text-[10px] text-gray-500 w-12 shrink-0 text-right">${p.label}</label>
+                                    ${p.options ? `
+                                        <select data-param="${p.key}"
+                                            class="tool-param flex-1 bg-gray-800/80 border border-gray-700 rounded-md px-2 py-1 text-xs text-white focus:outline-none focus:border-brand-500 transition appearance-none cursor-pointer">
+                                            ${p.options.map(o => `<option value="${o.v}"${o.v === p.default ? ' selected' : ''}>${o.t}</option>`).join('')}
+                                        </select>
+                                    ` : `
+                                        <input type="text" value="${esc(p.default || '')}" placeholder="${esc(p.placeholder || '')}"
+                                            data-param="${p.key}"
+                                            class="tool-param flex-1 bg-gray-800/80 border border-gray-700 rounded-md px-2 py-1 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-brand-500 transition">
+                                    `}
+                                </div>
+                            `).join('')}
+                        </div>
+                        <button onclick="quickStartTool(this.parentElement)" class="w-full ${c.tagCls} rounded-lg py-1.5 text-xs font-medium transition hover:brightness-110 cursor-pointer">发送</button>
+                    </div>`;
+                }
+                return `
+                <div class="welcome-card bg-gray-900 border border-gray-800 rounded-xl p-4" onclick="quickStart(this)" data-card-idx="${i}" ${c.fileSource ? `data-file-source="${esc(c.fileSource)}"` : ''}>
+                    <div class="flex items-center gap-2 mb-2">
+                        <span class="text-xs ${c.tagCls} px-2 py-0.5 rounded">${c.tag}</span>
+                    </div>
+                    <p class="text-sm text-gray-300 leading-relaxed">${esc(c.preview)}</p>
+                </div>`;
+            }).join('')}
+        </div>`;
+    welcomeVisible = true;
+    $('quick-panel').classList.add('hidden');
+}
+
+function hideWelcome() {
+    if (!welcomeVisible) return;
+    welcomeVisible = false;
+    $('welcome').style.display = 'none';
+    renderQuickPanel(current);
+}
+
+function renderQuickPanel(sceneType) {
+    const panel = $('quick-panel');
+    const inner = $('quick-panel-inner');
+    const s = SCENES[sceneType];
+    if (!s || !s.welcome || !s.welcome.cards.length) { panel.classList.add('hidden'); return; }
+    const w = s.welcome;
+    panel.classList.remove('hidden');
+    inner.innerHTML = w.cards.map((c, i) => {
+        if (c.params) {
+            return `<div class="quick-card bg-gray-900 border border-gray-800 rounded-lg p-3 cursor-pointer hover:border-gray-600 transition" data-tool-idx="${i}" data-scene="${sceneType}" onclick="quickPanelClick(this)">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="text-[10px] ${c.tagCls} px-1.5 py-0.5 rounded">${c.tag}</span>
+                </div>
+                <p class="text-[10px] text-gray-500 leading-snug">${esc(c.preview)}</p>
+            </div>`;
+        }
+        return `<div class="quick-card bg-gray-900 border border-gray-800 rounded-lg p-3 cursor-pointer hover:border-gray-600 transition"
+            data-card-idx="${i}" ${c.fileSource ? `data-file-source="${esc(c.fileSource)}"` : ''} data-scene="${sceneType}" onclick="quickPanelClick(this)">
+            <div class="flex items-center gap-2 mb-1">
+                <span class="text-[10px] ${c.tagCls} px-1.5 py-0.5 rounded">${c.tag}</span>
+            </div>
+            <p class="text-[10px] text-gray-500 leading-snug">${esc(c.preview)}</p>
+        </div>`;
+    }).join('');
+}
+
+function getCardData(el) {
+    const idx = el.dataset.cardIdx;
+    if (idx === undefined || idx === '') return null;
+    const s = SCENES[current];
+    if (!s || !s.welcome) return null;
+    return s.welcome.cards[parseInt(idx)];
+}
+
+async function quickStart(el) {
+    const fileSource = el.dataset.fileSource;
+    if (fileSource) {
+        try {
+            const res = await fetch(`/api/file/${encodeURIComponent(fileSource)}?max_length=4000`);
+            if (!res.ok) throw new Error('failed to load file');
+            const data = await res.json();
+            const text = data.content || '';
+            const fileInfo = {
+                name: data.name,
+                size: data.size,
+                totalChars: data.total_chars,
+                truncated: data.truncated,
+                displayedChars: text.length,
+            };
+            send(text, fileInfo);
+            return;
+        } catch (err) {
+            appendBubble('error', err.message);
+            return;
+        }
+    }
+    const card = getCardData(el);
+    if (!card) return;
+    const text = card.messages ? card.messages[Math.floor(Math.random() * card.messages.length)] : card.text;
+    $('detail-input').value = text;
+    $('detail-input')._dirty = true;
+    if (card.system_prompt && $('cfg-system_prompt')) $('cfg-system_prompt').value = card.system_prompt;
+    send(text, null, !!card.isPoem, !!card.isLyrics);
+}
+
+function quickStartTool(cardEl) {
+    const idx = parseInt(cardEl.dataset.toolIdx);
+    const w = SCENES[current].welcome;
+    const card = w.cards[idx];
+    if (!card || !card.template) return;
+    const inputs = cardEl.querySelectorAll('.tool-param');
+    const vals = {};
+    inputs.forEach(inp => { vals[inp.dataset.param] = inp.value.trim(); });
+    let text = card.template;
+    for (const [k, v] of Object.entries(vals)) {
+        text = text.replace(`{${k}}`, v || card.params.find(p => p.key === k)?.default || k);
+    }
+    // Collapse chip params after send
+    const params = cardEl.querySelector('.chip-params');
+    if (params) params.remove();
+    cardEl.classList.remove('expanded');
+    send(text);
+}
+
+document.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && e.target.classList.contains('tool-param')) {
+        e.preventDefault();
+        const card = e.target.closest('[data-tool-idx]');
+        if (card) quickStartTool(card);
+    }
+});
+
+function quickPanelClick(el) {
+    const scene = el.dataset.scene;
+    if (scene && scene !== current) selectScene(scene);
+    if (el.dataset.toolIdx !== undefined) {
+        const idx = parseInt(el.dataset.toolIdx);
+        const w = SCENES[current].welcome;
+        const card = w.cards[idx];
+        if (!card || !card.params) return;
+        if (el.classList.contains('expanded')) {
+            quickStartTool(el);
+            return;
+        }
+        // Collapse any other expanded chips first
+        document.querySelectorAll('.quick-card.expanded').forEach(c => {
+            if (c !== el) { const p = c.querySelector('.chip-params'); if (p) p.remove(); c.classList.remove('expanded'); }
+        });
+        el.classList.add('expanded');
+        const paramHtml = card.params.map(p => `
+            <div class="flex items-center gap-1.5 mt-1">
+                <label class="text-[10px] text-gray-500 shrink-0">${p.label}</label>
+                ${p.options ? `
+                    <select data-param="${p.key}" class="tool-param flex-1 bg-gray-800/80 border border-gray-700 rounded px-1.5 py-0.5 text-[10px] text-white focus:outline-none focus:border-brand-500 appearance-none cursor-pointer min-w-0">
+                        ${p.options.map(o => `<option value="${o.v}"${o.v === p.default ? ' selected' : ''}>${o.t}</option>`).join('')}
+                    </select>
+                ` : `
+                    <input type="text" value="${esc(p.default || '')}" placeholder="${esc(p.placeholder || '')}" data-param="${p.key}"
+                        class="tool-param flex-1 bg-gray-800/80 border border-gray-700 rounded px-1.5 py-0.5 text-[10px] text-white placeholder-gray-600 focus:outline-none focus:border-brand-500 min-w-0">
+                `}
+            </div>
+        `).join('') + `<button onclick="quickStartTool(this.parentElement)" class="w-full mt-1.5 ${card.tagCls} rounded py-0.5 text-[10px] font-medium cursor-pointer hover:brightness-110">发送</button>`;
+        el.insertAdjacentHTML('beforeend', `<div class="chip-params">${paramHtml}</div>`);
+    } else if (el.dataset.fileSource) {
+        quickStart(el);
+    } else {
+        const card = getCardData(el);
+        if (!card) return;
+        const text = card.messages ? card.messages[Math.floor(Math.random() * card.messages.length)] : card.text;
+        if (card.system_prompt && $('cfg-system_prompt')) $('cfg-system_prompt').value = card.system_prompt;
+        send(text, null, !!card.isPoem, !!card.isLyrics);
+    }
+}
+
+// ---- Conversations ----
+function newConversation(scene) {
+    convCounter++;
+    const conv = {
+        id: 'conv-' + convCounter,
+        scene,
+        title: '新对话 ' + convCounter,
+        messages: [],
+        createdAt: new Date(),
+    };
+    conversations[scene].unshift(conv);
+    currentConvId[scene] = conv.id;
+    return conv;
+}
+
+function getConv(scene, id) {
+    return conversations[scene].find(c => c.id === id);
+}
+
+function getCurrentConv() {
+    const id = currentConvId[current];
+    return id ? getConv(current, id) : null;
+}
+
+function loadConversation(convId) {
+    currentConvId[current] = convId;
+    renderOutput();
+    renderConvList();
+}
+
+function deleteConversation(convId, ev) {
+    if (ev) ev.stopPropagation();
+    const idx = conversations[current].findIndex(c => c.id === convId);
+    if (idx < 0) return;
+    conversations[current].splice(idx, 1);
+    if (currentConvId[current] === convId) {
+        const remaining = conversations[current];
+        currentConvId[current] = remaining.length ? remaining[0].id : null;
+        renderOutput();
+    }
+    renderConvList();
+}
+
+function newCurrentConv() {
+    newConversation(current);
+    $('detail-input').value = '';
+    $('detail-input')._dirty = false;
+    renderOutput();
+    renderConvList();
+}
+
+function renderOutput() {
+    const conv = getCurrentConv();
+    const out = $('output');
+    out.innerHTML = '';
+    if (!conv || !conv.messages.length) {
+        renderWelcome(current);
+    } else {
+        hideWelcome();
+        conv.messages.forEach(m => renderMessage(m));
+    }
+    scrollBottom();
+}
+
+function renderMessage(msg) {
+    if (msg.role === 'user') {
+        if (msg.file) {
+            appendFileBubble(msg.file);
+        } else {
+            appendUserBubble(msg.text, msg.isPoem, msg.isLyrics, current);
+        }
+        return;
+    }
+    const id = 'msg-' + (++msgCounter);
+    appendAssistantBubble(id, msg.scene || current);
+    const contentEl = $(`${id}-content`);
+    if (msg.aborted) {
+        let partial = '';
+        if (msg.content) {
+            partial = '<div class="md-content text-sm text-gray-100 leading-relaxed mb-2">' + md(msg.content) + '</div>';
+        }
+        contentEl.innerHTML = partial + '<div class="flex items-center gap-2 text-amber-400/80 pt-1 border-t border-gray-800"><svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><span class="text-xs">因切换场景，输出已中断</span></div>';
+    } else if (msg.content) {
+        contentEl.innerHTML = md(msg.content);
+        contentEl.classList.add('md-content');
+    } else if (msg.data) {
+        contentEl.innerHTML = formatResult(msg.scene || current, msg.data);
+    }
+    if (msg.usage && msg.scene !== 'embedding') renderUsageTags(id, msg.usage, msg.model || '');
+    if (msg.suggestions && msg.suggestions.length) renderSuggestions(id, msg.suggestions);
+}
+
+// ---- Conversation list ----
+function renderConvList() {
+    const list = $('conv-list');
+    const convs = conversations[current] || [];
+    $('conv-count').textContent = convs.length;
+    if (!convs.length) {
+        list.innerHTML = '<p class="text-[10px] text-gray-600 px-1 pt-2">暂无对话记录</p>';
+        return;
+    }
+    const curId = currentConvId[current];
+    list.innerHTML = convs.map(c => {
+        const isActive = c.id === curId;
+        const msgCount = c.messages.filter(m => m.role === 'user').length;
+        const title = c.messages.length ? c.title : '新对话';
+        return `
+            <div class="conv-card ${isActive ? 'active' : 'bg-gray-900 border-gray-800'} border rounded-lg p-2.5 relative group" onclick="loadConversation('${c.id}')">
+                <button onclick="deleteConversation('${c.id}', event)" class="del-btn absolute top-1.5 right-1.5 w-5 h-5 rounded text-gray-500 hover:text-red-400 hover:bg-red-500/15 flex items-center justify-center" title="删除对话">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+                <p class="text-xs ${isActive ? 'text-white font-medium' : 'text-gray-300'} leading-snug line-clamp-2 pr-5">${esc(title)}</p>
+                <div class="flex items-center justify-between mt-1.5">
+                    <span class="text-[10px] text-gray-600">${msgCount} 条消息</span>
+                    <span class="text-[10px] text-gray-600">${formatTime(c.createdAt)}</span>
+                </div>
+            </div>`;
+    }).join('');
+}
+
+function formatTime(date) {
+    const diff = (Date.now() - date.getTime()) / 1000;
+    if (diff < 60) return '刚刚';
+    if (diff < 3600) return Math.floor(diff / 60) + ' 分钟前';
+    if (diff < 86400) return Math.floor(diff / 3600) + ' 小时前';
+    return date.toLocaleDateString();
+}
+
+// ---- Scene ----
+let _abortedScene = null;
+
+function selectScene(type) {
+    // Abort streaming if switching to a different scene
+    if (_isStreaming && _abortCtrl && type !== current) {
+        _abortedScene = current;
+        _abortCtrl.abort();
+    }
+    current = type;
+    const s = SCENES[type];
+    document.querySelectorAll('.scene-card').forEach(c => c.classList.remove('active'));
+    document.querySelector(`.scene-card[data-scene="${type}"]`).classList.add('active');
+    const input = $('detail-input');
+    input.placeholder = s.placeholder;
+    input._dirty = false;
+    input.value = s.defaultInput;
+    $('input-bar').style.display = type === 'tools' ? 'none' : '';
+    $('row-system').style.display = s.showSystem ? '' : 'none';
+    $('param-temperature').style.display = s.showParams ? '' : 'none';
+    $('param-top_p').style.display = s.showParams ? '' : 'none';
+    $('param-max_tokens').style.display = s.showParams ? '' : 'none';
+    $('param-dimensions').style.display = s.showDimensions ? 'block' : 'none';
+    $('param-dimensions').classList.toggle('hidden', !s.showDimensions);
+    if (s.showDimensions && !$('cfg-dimensions').value) $('cfg-dimensions').value = '1024';
+    // Populate model dropdown for this scene
+    const modelSel = $('cfg-model');
+    const saved = selectedModel[type] || s.defaultModel || '';
+    modelSel.innerHTML = s.models.map(m =>
+        `<option value="${m}"${m === saved ? ' selected' : ''}>${m === '' ? '默认' : m}</option>`
+    ).join('');
+    selectedModel[type] = saved;
+    renderOutput();
+    renderConvList();
+    // Show sidebar cards if welcome is hidden (conversation in progress)
+    if (!welcomeVisible) renderQuickPanel(type);
+}
+
+function clearInput() {
+    $('detail-input').value = '';
+    $('detail-input').focus();
+}
+
+$('cfg-temperature').addEventListener('input', function() { $('val-temp').textContent = this.value; });
+$('cfg-top_p').addEventListener('input', function() { $('val-top_p').textContent = this.value; });
+
+// ---- Abort control ----
+let _abortCtrl = null;
+let _isStreaming = false;
+
+const _BTN_SEND = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M12 5l7 7-7 7"/></svg>';
+const _BTN_STOP = '<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
+
+function setBtnStreaming(streaming) {
+    _isStreaming = streaming;
+    const btn = $('detail-btn');
+    if (streaming) {
+        btn.disabled = false;
+        btn.className = 'bg-red-500/80 hover:bg-red-500 text-white rounded-lg w-8 h-8 flex items-center justify-center transition';
+        btn.title = '停止输出';
+        btn.innerHTML = _BTN_STOP;
+    } else {
+        btn.disabled = false;
+        btn.className = 'bg-brand-500 hover:bg-brand-600 text-white rounded-lg w-8 h-8 flex items-center justify-center transition';
+        btn.title = '发送';
+        btn.innerHTML = _BTN_SEND;
+    }
+}
+
+function handleSendOrStop() {
+    if (_isStreaming && _abortCtrl) {
+        _abortCtrl.abort();
+    } else {
+        send();
+    }
+}
+
+// ---- Config Panel ----
+let _configPanelOpen = false;
+let _configData = {};
+
+async function toggleConfigPanel() {
+    _configPanelOpen = !_configPanelOpen;
+    const panel = $('config-panel');
+    const overlay = $('config-overlay');
+    if (_configPanelOpen) {
+        overlay.classList.remove('hidden');
+        panel.classList.remove('-translate-x-full');
+        await loadConfig();
+    } else {
+        overlay.classList.add('hidden');
+        panel.classList.add('-translate-x-full');
+    }
+}
+
+async function loadConfig() {
+    try {
+        const res = await fetch('/api/config');
+        if (!res.ok) throw new Error('加载失败');
+        const data = await res.json();
+        _configData = data.fields;
+        renderConfigFields(data.fields);
+    } catch (err) {
+        $('config-fields').innerHTML = `<p class="text-xs text-red-400">加载配置失败: ${esc(err.message)}</p>`;
+    }
+}
+
+function renderConfigFields(fields) {
+    const container = $('config-fields');
+    const groups = [
+        { title: 'Chat / Agent / Chain', keys: ['OPENAI_API_KEY', 'OPENAI_BASE_URL', 'OPENAI_MODEL', 'OPENAI_MODELS'] },
+        { title: 'Embedding', keys: ['EMBEDDING_API_KEY', 'EMBEDDING_BASE_URL', 'EMBEDDING_MODEL', 'EMBEDDING_MODELS'] },
+        { title: 'Langfuse', keys: ['LANGFUSE_PUBLIC_KEY', 'LANGFUSE_SECRET_KEY', 'LANGFUSE_HOST'] },
+    ];
+    let html = '';
+    for (const g of groups) {
+        html += `<div class="text-[10px] text-gray-500 uppercase tracking-wider mb-1.5 mt-2 first:mt-0">${g.title}</div>`;
+        for (const f of fields) {
+            if (!g.keys.includes(f.key)) continue;
+            if (f.type === 'tags') {
+                const models = f.value ? f.value.split(',').map(m => m.trim()).filter(Boolean) : [];
+                html += `<div class="space-y-1">
+                    <label class="text-[10px] text-gray-400 block">${esc(f.label)} <span class="text-gray-600">（逗号分隔，回车添加）</span></label>
+                    <div data-config-key="${f.key}" data-value="${esc(f.value)}" class="config-tags flex flex-wrap gap-1 bg-gray-900 border border-gray-800 rounded-lg px-2 py-1.5 min-h-[34px] cursor-text focus-within:border-brand-500 transition" onclick="focusConfigTagInput(this)">
+                        ${models.map(m => `<span class="inline-flex items-center gap-1 bg-brand-500/15 text-brand-300 border border-brand-500/30 text-[10px] px-1.5 py-0.5 rounded">${esc(m)}<span class="cursor-pointer hover:text-white" onclick="removeConfigTag(event, '${f.key}', '${esc(m)}')">&times;</span></span>`).join('')}
+                        <input type="text" class="flex-1 min-w-[60px] bg-transparent border-none outline-none text-xs text-white placeholder-gray-600 py-0.5" placeholder="输入模型名"
+                            onkeydown="handleConfigTagKeydown(event, '${f.key}')" data-tag-input="${f.key}">
+                    </div>
+                </div>`;
+            } else {
+                const inputType = f.secret ? 'password' : 'text';
+                html += `<div class="space-y-0.5">
+                    <label class="text-[10px] text-gray-400 block">${esc(f.label)}</label>
+                    <input type="${inputType}" data-config-key="${f.key}" value="${esc(f.value)}"
+                        class="w-full bg-gray-900 border border-gray-800 rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-brand-500 transition"
+                        placeholder="${esc(f.label)}">
+                </div>`;
+            }
+        }
+    }
+    container.innerHTML = html;
+}
+
+function focusConfigTagInput(el) {
+    el.querySelector('input').focus();
+}
+
+function getConfigTagModels(key) {
+    const el = document.querySelector(`[data-config-key="${key}"]`);
+    return (el.dataset.value || '').split(',').map(m => m.trim()).filter(Boolean);
+}
+
+function setConfigTagModels(key, models) {
+    const el = document.querySelector(`[data-config-key="${key}"]`);
+    if (el) el.dataset.value = models.join(',');
+    // Re-render tags for this field
+    const field = _configData.find(f => f.key === key);
+    if (field) {
+        field.value = models.join(',');
+        renderConfigFields(_configData);
+    }
+}
+
+function handleConfigTagKeydown(e, key) {
+    if (e.key === 'Enter' || e.key === ',') {
+        e.preventDefault();
+        const val = e.target.value.trim();
+        if (!val) return;
+        const models = getConfigTagModels(key);
+        if (!models.includes(val)) {
+            models.push(val);
+            setConfigTagModels(key, models);
+        } else {
+            e.target.value = '';
+        }
+    } else if (e.key === 'Backspace' && !e.target.value) {
+        const models = getConfigTagModels(key);
+        if (models.length) {
+            models.pop();
+            setConfigTagModels(key, models);
+        }
+    }
+}
+
+function removeConfigTag(e, key, model) {
+    e.stopPropagation();
+    const models = getConfigTagModels(key).filter(m => m !== model);
+    setConfigTagModels(key, models);
+}
+
+async function saveConfig() {
+    const values = {};
+    // Collect regular inputs
+    document.querySelectorAll('input[data-config-key]').forEach(input => {
+        values[input.dataset.configKey] = input.value;
+    });
+    // Collect tag fields
+    document.querySelectorAll('[data-config-key][data-value]').forEach(el => {
+        values[el.dataset.configKey] = el.dataset.value;
+    });
+    try {
+        const res = await fetch('/api/config', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ values }),
+        });
+        if (!res.ok) throw new Error('保存失败');
+        // Show toast
+        const toast = $('config-toast');
+        toast.textContent = '配置已保存并生效';
+        toast.classList.remove('hidden');
+        setTimeout(() => toast.classList.add('hidden'), 2000);
+        // Sync model lists to scene configs and dropdowns
+        if (values.OPENAI_MODELS) {
+            const models = [''].concat(values.OPENAI_MODELS.split(',').map(m => m.trim()).filter(Boolean));
+            for (const key of ['chat', 'agent', 'tools']) {
+                if (SCENES[key]) SCENES[key].models = models;
+            }
+            // Refresh current dropdown
+            if (current && ['chat', 'agent', 'tools'].includes(current)) {
+                const select = $('cfg-model');
+                const saved = selectedModel[current] || SCENES[current].defaultModel || '';
+                select.innerHTML = models.map(m => `<option value="${m}"${m === saved ? ' selected' : ''}>${m === '' ? '默认' : m}</option>`).join('');
+            }
+        }
+        if (values.OPENAI_MODEL) {
+            syncModelToDropdowns(values.OPENAI_MODEL);
+        }
+        if (values.EMBEDDING_MODELS) {
+            const models = values.EMBEDDING_MODELS.split(',').map(m => m.trim()).filter(Boolean);
+            if (SCENES.embedding) SCENES.embedding.models = models;
+        }
+    } catch (err) {
+        const toast = $('config-toast');
+        toast.textContent = '保存失败: ' + err.message;
+        toast.className = 'px-4 py-2 text-xs text-red-400 bg-red-500/10 border-t border-red-500/20 text-center';
+        setTimeout(() => { toast.classList.add('hidden'); toast.className = 'hidden px-4 py-2 text-xs text-green-400 bg-green-500/10 border-t border-green-500/20 text-center'; }, 3000);
+    }
+}
+
+function syncModelToDropdowns(model) {
+    if (!model) return;
+    // Add to all scene model lists if not present
+    for (const key of Object.keys(SCENES)) {
+        const s = SCENES[key];
+        if (s.models && !s.models.includes(model)) {
+            s.models.push(model);
+        }
+    }
+    // Also update current dropdown
+    const select = $('cfg-model');
+    if (!select) return;
+    let found = false;
+    for (const opt of select.options) {
+        if (opt.value === model) { found = true; break; }
+    }
+    if (!found) {
+        const opt = document.createElement('option');
+        opt.value = model;
+        opt.textContent = model;
+        select.insertBefore(opt, select.firstChild);
+    }
+    select.value = model;
+    if (current) selectedModel[current] = model;
+}
+
+// Load config on page init to sync .env values
+(async function initConfig() {
+    try {
+        const res = await fetch('/api/config');
+        if (!res.ok) return;
+        const data = await res.json();
+        for (const f of data.fields) {
+            if (f.key === 'OPENAI_MODELS' && f.value) {
+                const models = [''].concat(f.value.split(',').map(m => m.trim()).filter(Boolean));
+                for (const key of ['chat', 'agent', 'tools']) {
+                    if (SCENES[key]) SCENES[key].models = models;
+                }
+            }
+            if (f.key === 'EMBEDDING_MODELS' && f.value) {
+                const models = f.value.split(',').map(m => m.trim()).filter(Boolean);
+                if (SCENES.embedding) SCENES.embedding.models = models;
+            }
+            if (f.key === 'OPENAI_MODEL' && f.value) {
+                syncModelToDropdowns(f.value);
+            }
+        }
+        // Re-render if a scene is already selected
+        if (current) {
+            const s = SCENES[current];
+            const modelSel = $('cfg-model');
+            const saved = selectedModel[current] || s.defaultModel || '';
+            modelSel.innerHTML = s.models.map(m =>
+                `<option value="${m}"${m === saved ? ' selected' : ''}>${m === '' ? '默认' : m}</option>`
+            ).join('');
+        }
+    } catch {}
+})();
+
+// ---- Send ----
+async function send(overrideText, fileInfo, isPoem, isLyrics) {
+    // Cancel any ongoing stream before starting a new one
+    if (_isStreaming && _abortCtrl) {
+        _abortCtrl.abort();
+        // Wait a tick for the abort to settle
+        await new Promise(r => setTimeout(r, 0));
+    }
+    const input = $('detail-input');
+    const text = overrideText || input.value.trim();
+    if (!text || !current) return;
+
+    let conv = getCurrentConv();
+    if (!conv) {
+        conv = newConversation(current);
+        renderConvList();
+    }
+    hideWelcome();
+
+    // Add user message
+    conv.messages.push({ role: 'user', text, file: fileInfo || null, isPoem: !!isPoem, isLyrics: !!isLyrics });
+    if (fileInfo) {
+        appendFileBubble(fileInfo);
+    } else {
+        appendUserBubble(text, !!isPoem, !!isLyrics, current);
+    }
+
+    // Update title if first message
+    if (conv.messages.length === 1) {
+        conv.title = fileInfo ? fileInfo.name : (text.length > 40 ? text.slice(0, 40) + '...' : text);
+        renderConvList();
+    }
+
+    // Clear input
+    if (!overrideText) {
+        input.value = '';
+        input._dirty = false;
+    }
+
+    const sendScene = current;
+    const s = SCENES[sendScene];
+    _abortCtrl = new AbortController();
+    setBtnStreaming(true);
+
+    try {
+        let assistantMsg;
+        if (sendScene === 'agent') {
+            assistantMsg = await sendAgentStream(s, text, sendScene, _abortCtrl.signal);
+        } else if (s.stream) {
+            assistantMsg = await sendStream(s, text, sendScene, _abortCtrl.signal);
+        } else {
+            assistantMsg = await sendJson(s, text, sendScene, _abortCtrl.signal);
+        }
+        // Handle abort that was caught inside stream functions
+        if (assistantMsg.aborted) {
+            document.querySelectorAll('#output .cursor-blink').forEach(el => el.classList.remove('cursor-blink'));
+            document.querySelectorAll('#output .loader-slow').forEach(el => { el.style.display = 'none'; });
+            if (_abortedScene === sendScene) {
+                // Scene switch — save partial + aborted marker to conv (don't append to DOM, scene changed)
+                conv.messages.push(assistantMsg);
+            } else {
+                // User stop — show abort bubble with partial content already in DOM
+                appendAbortBubble('输出已被用户中断');
+            }
+            _abortedScene = null;
+        } else {
+            conv.messages.push(assistantMsg);
+        }
+        renderConvList();
+    } catch (err) {
+        if (err.name === 'AbortError') {
+            // Abort happened before/during fetch (connection phase)
+            document.querySelectorAll('#output .cursor-blink').forEach(el => el.classList.remove('cursor-blink'));
+            document.querySelectorAll('#output .loader-slow').forEach(el => { el.style.display = 'none'; });
+            if (_abortedScene === sendScene) {
+                conv.messages.push({ role: 'assistant', scene: sendScene, content: '', aborted: true });
+            } else {
+                appendAbortBubble('输出已被用户中断');
+            }
+            _abortedScene = null;
+        } else if (current === sendScene) {
+            appendBubble('error', err.message);
+        }
+    } finally {
+        _abortCtrl = null;
+        setBtnStreaming(false);
+    }
+}
+
+// ---- Stream (Chat) ----
+async function sendStream(s, text, scene, signal) {
+    const id = 'msg-' + (++msgCounter);
+    let contentEl = null;
+    if (current === scene) {
+        appendAssistantBubble(id, scene);
+        contentEl = $(`${id}-content`);
+        contentEl.classList.add('md-content');
+    }
+    const res = await fetch(s.url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(s.buildBody(text)),
+        signal,
+    });
+    if (!res.ok) { const err = await res.json().catch(() => ({ detail: res.statusText })); throw new Error(err.detail || JSON.stringify(err)); }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '', fullText = '', fullThinking = '', usage = null, model = '', suggestions = [];
+    let thinkingEl = null, answerEl = null, thinkingPhase = false;
+    try {
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+        for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            const raw = line.slice(6).trim();
+            if (raw === '[DONE]') continue;
+            try {
+                const d = JSON.parse(raw);
+                if (d.thinking_heartbeat && !thinkingPhase && current === scene && contentEl) {
+                    thinkingPhase = true;
+                    contentEl.innerHTML = '<div id="' + id + '-thinking"></div><div id="' + id + '-answer"></div>';
+                    thinkingEl = $(`${id}-thinking`);
+                    answerEl = $(`${id}-answer`);
+                    thinkingEl.innerHTML = '<div id="' + id + '-think-header" class="flex items-center gap-2 py-1"><span class="loader-slow"></span><span class="text-xs text-purple-400 font-medium">深度思考中...</span></div>';
+                    scrollBottom();
+                }
+                if (d.thinking) {
+                    if (!thinkingPhase && current === scene && contentEl) {
+                        thinkingPhase = true;
+                        contentEl.innerHTML = '<div id="' + id + '-thinking"></div><div id="' + id + '-answer"></div>';
+                        thinkingEl = $(`${id}-thinking`);
+                        answerEl = $(`${id}-answer`);
+                        thinkingEl.innerHTML = '<div id="' + id + '-think-header" class="flex items-center gap-2 py-1"><span class="loader-slow"></span><span class="text-xs text-purple-400 font-medium">深度思考中...</span></div><div id="' + id + '-think-text" class="text-xs text-gray-400 leading-relaxed pl-4 border-l-2 border-purple-500/30 max-h-[200px] overflow-y-auto"></div>';
+                    } else if (!document.getElementById(id + '-think-text') && current === scene && thinkingEl) {
+                        const header = $(id + '-think-header');
+                        if (header) header.insertAdjacentHTML('afterend', '<div id="' + id + '-think-text" class="text-xs text-gray-400 leading-relaxed pl-4 border-l-2 border-purple-500/30 max-h-[200px] overflow-y-auto"></div>');
+                    }
+                    fullThinking += d.thinking;
+                    if (current === scene) {
+                        const tt = document.getElementById(id + '-think-text');
+                        if (tt) { tt.textContent = fullThinking; tt.scrollTop = tt.scrollHeight; }
+                        scrollBottom();
+                    }
+                }
+                if (d.thinking_done && current === scene && thinkingEl) {
+                    if (fullThinking) {
+                        thinkingEl.innerHTML = '<details open class="group"><summary class="flex items-center gap-2 cursor-pointer select-none text-xs text-purple-400 font-medium py-1 hover:text-purple-300"><svg class="w-3.5 h-3.5 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>深度思考（' + fullThinking.length + '字）</summary><div class="text-xs text-gray-400 leading-relaxed pl-5 border-l-2 border-purple-500/30 max-h-[300px] overflow-y-auto mt-1 mb-2 whitespace-pre-wrap">' + esc(fullThinking) + '</div></details>';
+                    } else {
+                        thinkingEl.innerHTML = '<details class="group"><summary class="flex items-center gap-2 cursor-pointer select-none text-xs text-purple-400/60 font-medium py-1 hover:text-purple-300"><svg class="w-3.5 h-3.5 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>深度思考已完成</summary></details>';
+                    }
+                    scrollBottom();
+                }
+                if (d.content) {
+                    fullText += d.content;
+                    if (current === scene && contentEl) {
+                        if (!answerEl && !thinkingPhase) {
+                            contentEl.classList.add('cursor-blink');
+                            contentEl.innerHTML = md(fullText);
+                        } else if (answerEl) {
+                            answerEl.innerHTML = '<div class="md-content text-sm text-gray-100 leading-relaxed">' + md(fullText) + '</div>';
+                            answerEl.classList.add('cursor-blink');
+                        }
+                        scrollBottom();
+                    }
+                }
+                if (d.usage) { usage = d.usage; model = d.model || ''; }
+                if (d.suggestions) { suggestions = d.suggestions; }
+            } catch {}
+        }
+    }
+    } catch (e) {
+        if (e.name !== 'AbortError') throw e;
+    }
+    if (current === scene && contentEl) {
+        contentEl.classList.remove('cursor-blink');
+        if (answerEl) answerEl.classList.remove('cursor-blink');
+        if (usage) renderUsageTags(id, usage, model);
+        if (suggestions.length) renderSuggestions(id, suggestions);
+    }
+    return { role: 'assistant', scene, content: fullText, usage, model, suggestions };
+}
+
+// ---- Agent Stream ----
+const _STEP_META = {
+    'intent-recognition': { label: '意图识别', idx: 0 },
+    'knowledge-retrieval': { label: '知识检索', idx: 1 },
+    'final-answer': { label: '最终回答', idx: 2 },
+};
+const _STEP_COLORS = ['border-blue-500 bg-blue-500/5', 'border-purple-500 bg-purple-500/5', 'border-green-500 bg-green-500/5'];
+const _STEP_LABEL_COLORS = ['text-blue-400', 'text-purple-400', 'text-green-400'];
+
+async function sendAgentStream(s, text, scene, signal) {
+    const id = 'msg-' + (++msgCounter);
+    let contentEl = null;
+    let stepHtml = '<div class="space-y-2.5">';
+    const stepsData = [];
+    let finalAnswer = '';
+
+    if (current === scene) {
+        appendAssistantBubble(id, scene);
+        contentEl = $(`${id}-content`);
+        contentEl.innerHTML = '<div class="flex items-center gap-2 py-1"><span class="loader"></span><span class="text-gray-500 text-xs">Agent 正在思考...</span></div>';
+    }
+
+    const res = await fetch(s.url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(s.buildBody(text)),
+        signal,
+    });
+    if (!res.ok) { const err = await res.json().catch(() => ({ detail: res.statusText })); throw new Error(err.detail || JSON.stringify(err)); }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    try {
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+        for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            const raw = line.slice(6).trim();
+            if (raw === '[DONE]') continue;
+            try {
+                const d = JSON.parse(raw);
+                if (d.step_start && current === scene && contentEl) {
+                    const meta = _STEP_META[d.step_start] || { label: d.step_start, idx: 99 };
+                    const color = _STEP_COLORS[meta.idx] || 'border-gray-600 bg-gray-800/50';
+                    const labelColor = _STEP_LABEL_COLORS[meta.idx] || 'text-gray-400';
+                    stepHtml += `<div class="step-card ${color} rounded-r-lg pl-3 pr-4 py-2.5">`;
+                    stepHtml += `<div class="text-[10px] font-medium ${labelColor} mb-1 uppercase tracking-wider">Step ${meta.idx + 1}: ${meta.label}</div>`;
+                    stepHtml += `<div class="flex items-center gap-2 py-0.5"><span class="loader"></span><span class="text-gray-500 text-xs">处理中...</span></div>`;
+                    stepHtml += '</div>';
+                    contentEl.innerHTML = stepHtml + '</div>';
+                    scrollBottom();
+                }
+                if (d.step) {
+                    const step = d.step;
+                    const meta = _STEP_META[step.name] || { label: step.name, idx: 99 };
+                    stepsData.push(step);
+                    if (current === scene && contentEl) {
+                        // Rebuild step cards with completed content
+                        let rebuild = '<div class="space-y-2.5">';
+                        stepsData.forEach((s, i) => {
+                            const c = _STEP_COLORS[i] || 'border-gray-600 bg-gray-800/50';
+                            const lc = _STEP_LABEL_COLORS[i] || 'text-gray-400';
+                            const m = _STEP_META[s.name] || { label: s.name, idx: i };
+                            rebuild += `<div class="step-card ${c} rounded-r-lg pl-3 pr-4 py-2.5">`;
+                            rebuild += `<div class="text-[10px] font-medium ${lc} mb-1 uppercase tracking-wider">Step ${i + 1}: ${m.label}</div>`;
+                            rebuild += `<div class="md-content text-sm text-gray-200 leading-relaxed">${md(s.result)}</div>`;
+                            rebuild += '</div>';
+                        });
+                        stepHtml = rebuild;
+                        contentEl.innerHTML = rebuild + '</div>';
+                        scrollBottom();
+                    }
+                }
+                if (d.final_answer) {
+                    finalAnswer = d.final_answer;
+                }
+            } catch {}
+        }
+    }
+    } catch (e) {
+        if (e.name !== 'AbortError') throw e;
+    }
+
+    if (current === scene && contentEl) {
+        contentEl.classList.remove('cursor-blink');
+    }
+    return { role: 'assistant', scene, data: { steps: stepsData, final_answer: finalAnswer }, usage: null, model: '' };
+}
+
+// ---- JSON (Tools / Embedding) ----
+async function sendJson(s, text, scene, signal) {
+    let loadId = null;
+    if (current === scene) loadId = appendLoading(scene);
+    let res;
+    try {
+        res = await fetch(s.url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(s.buildBody(text)), signal });
+    } catch (e) {
+        if (loadId) removeMsg(loadId);
+        if (e.name === 'AbortError') return { role: 'assistant', scene, data: null, aborted: true, usage: null, model: '' };
+        throw e;
+    }
+    if (loadId) removeMsg(loadId);
+    if (!res.ok) { const err = await res.json().catch(() => ({ detail: res.statusText })); throw new Error(err.detail || JSON.stringify(err)); }
+    const data = await res.json();
+    if (current === scene) {
+        const id = 'msg-' + (++msgCounter);
+        appendAssistantBubble(id, scene);
+        $(`${id}-content`).innerHTML = formatResult(scene, data);
+        if (scene !== 'embedding' && data.usage) renderUsageTags(id, data.usage, data.model || '');
+    }
+    return { role: 'assistant', scene, data, usage: data.usage || null, model: data.model || '' };
+}
+
+// ---- Format results per scene ----
+function formatResult(scene, data) {
+    if (scene === 'agent') return fmtAgent(data);
+    if (scene === 'tools') return fmtTools(data);
+    if (scene === 'embedding') return fmtEmbedding(data);
+    return `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+}
+
+function fmtAgent(data) {
+    const names = { 'intent-recognition': '意图识别', 'knowledge-retrieval': '知识检索', 'final-answer': '最终回答' };
+    const colors = ['border-blue-500 bg-blue-500/5', 'border-purple-500 bg-purple-500/5', 'border-green-500 bg-green-500/5'];
+    const labelColors = ['text-blue-400', 'text-purple-400', 'text-green-400'];
+    let html = '<div class="space-y-2.5">';
+    data.steps.forEach((step, i) => {
+        html += `<div class="step-card ${colors[i] || 'border-gray-600 bg-gray-800/50'} rounded-r-lg pl-3 pr-4 py-2.5">
+            <div class="text-[10px] font-medium ${labelColors[i] || 'text-gray-400'} mb-1 uppercase tracking-wider">Step ${i+1}: ${names[step.name] || step.name}</div>
+            <div class="md-content text-sm text-gray-200 leading-relaxed">${md(step.result)}</div>
+        </div>`;
+    });
+    html += '</div>';
+    return html;
+}
+
+function fmtTools(data) {
+    let html = '<div class="space-y-2.5">';
+    if (data.tool_calls && data.tool_calls.length) {
+        data.tool_calls.forEach(tc => {
+            html += `<div class="step-card border-green-500 bg-green-500/5 rounded-r-lg pl-3 pr-4 py-2.5">
+                <div class="text-[10px] font-medium text-green-400 mb-1.5 uppercase tracking-wider">🔧 ${esc(tc.tool)}</div>
+                <div class="text-[10px] text-gray-500 mb-0.5">参数</div>
+                <div class="text-xs text-gray-300 bg-gray-800/60 rounded px-2 py-1 mb-1.5 font-mono break-all">${esc(JSON.stringify(tc.arguments))}</div>
+                <div class="text-[10px] text-gray-500 mb-0.5">结果</div>
+                <div class="text-xs text-gray-300 bg-gray-800/60 rounded px-2 py-1 font-mono break-all">${esc(JSON.stringify(tc.result))}</div>
+            </div>`;
+        });
+    }
+    if (data.final_answer) {
+        html += `<div class="step-card border-blue-500 bg-blue-500/5 rounded-r-lg pl-3 pr-4 py-2.5">
+            <div class="text-[10px] font-medium text-blue-400 mb-1 uppercase tracking-wider">总结</div>
+            <div class="md-content text-sm text-gray-200 leading-relaxed">${md(data.final_answer)}</div>
+        </div>`;
+    }
+    html += '</div>';
+    return html;
+}
+
+function fmtEmbedding(data) {
+    const chips = [
+        data.model ? { icon: '🤖', label: 'Model', value: data.model, primary: false } : null,
+        data.total_dimensions ? { icon: '📐', label: 'Dims', value: data.total_dimensions, primary: false } : null,
+        data.usage ? { icon: 'Σ', label: 'Tokens', value: data.usage.total_tokens ?? '-', primary: true } : null,
+    ].filter(Boolean);
+    return `<div class="space-y-2">
+        <div class="flex flex-wrap gap-2">
+            ${chips.map(t => `<span class="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md border ${t.primary ? 'bg-brand-500/15 text-brand-300 border-brand-500/30' : 'bg-gray-800 text-gray-200 border-gray-700'}">
+                <span class="opacity-50">${t.icon}</span><span class="opacity-60">${t.label}</span><span class="font-mono font-medium">${esc(String(t.value))}</span>
+            </span>`).join('')}
+        </div>
+        <div class="text-xs text-gray-400 bg-gray-800/60 rounded-lg px-3 py-2 font-mono leading-relaxed break-all">[${data.embedding ? data.embedding.map(v => v.toFixed(6)).join(', ') : ''}]</div>
+    </div>`;
+}
+
+// ---- Bubbles (with avatars) ----
+function isCodeLike(text) {
+    if (!text.includes('\n')) return false;
+    const codePatterns = /^(def |class |import |from |function |public |private |const |let |var |return |if \(|for \(|while \(|#include|using namespace|\<?php|fn |func |module |package )/m;
+    return codePatterns.test(text);
+}
+
+function detectLang(text) {
+    if (/\bdef\s+\w+\s*\(|import\s+\w+|from\s+\w+\s+import/.test(text)) return 'python';
+    if (/\bfunction\s+\w+|const\s+\w+|let\s+\w+|=>\s*\{|require\s*\(/.test(text)) return 'javascript';
+    if (/\bfn\s+\w+|let\s+mut\s+|impl\s+|pub\s+fn/.test(text)) return 'rust';
+    if (/\bclass\s+\w+|public\s+static|System\.out|void\s+\w+/.test(text)) return 'java';
+    if (/#include|std::|cout\s*<<|int\s+main/.test(text)) return 'cpp';
+    if (/func\s+\w+|package\s+main|:=/.test(text)) return 'go';
+    return '';
+}
+
+function isMarkdown(text) {
+    return /^#/m.test(text);
+}
+
+function appendUserBubble(text, isPoem, isLyrics, scene) {
+    const out = $('output');
+    const div = document.createElement('div');
+    div.className = 'fade-in flex items-start gap-2.5 justify-end';
+    // Embedding scene uses darker bg to distinguish input content types
+    const bg = scene === 'embedding' ? 'bg-gray-800 border border-gray-700' : 'bg-brand-600';
+    const textCls = scene === 'embedding' ? 'text-gray-100' : 'text-white';
+    let content;
+    if (isPoem || isLyrics) {
+        const lines = text.split('\n').filter(l => l.trim());
+        if (isLyrics) {
+            content = `<div class="text-sm text-white ${bg} rounded-xl rounded-tr-sm min-w-[280px] overflow-hidden">
+                <div class="bg-gradient-to-r from-brand-700 to-brand-500 px-4 py-2.5 flex items-center gap-3">
+                    <div class="w-9 h-9 bg-white/15 rounded-lg flex items-center justify-center text-lg shrink-0">🎵</div>
+                    <div class="min-w-0">
+                        <div class="font-medium text-sm text-white truncate">夜空中最亮的星</div>
+                        <div class="text-[10px] text-white/60">逃跑计划</div>
+                    </div>
+                </div>
+                <div class="px-5 py-3 space-y-2">
+                    ${lines.map((l, i) => `<p class="text-xs text-white/85 leading-relaxed text-center">${esc(l)}</p>`).join('')}
+                </div>
+                <div class="border-t border-white/10 px-4 py-2 flex items-center justify-center gap-1">
+                    <span class="text-white/30 text-[10px]">●</span>
+                    <span class="text-white/30 text-[10px]">●</span>
+                    <span class="text-white/30 text-[10px]">●</span>
+                </div>
+            </div>`;
+        } else {
+            content = `<div class="text-sm text-white ${bg} rounded-xl rounded-tr-sm px-5 py-3 min-w-0">
+                <div class="space-y-1">${lines.map(l => `<p class="text-center leading-relaxed tracking-wider">${esc(l)}</p>`).join('')}</div>
+            </div>`;
+        }
+    } else if (isMarkdown(text)) {
+        content = `<div class="text-sm ${textCls} ${bg} rounded-xl rounded-tr-sm px-4 py-3 min-w-0">
+            <div class="md-content max-h-[600px] overflow-y-auto pr-1">${md(text)}</div>
+        </div>`;
+    } else if (isCodeLike(text)) {
+        const lang = detectLang(text);
+        content = `<div class="text-sm ${textCls} ${bg} rounded-xl rounded-tr-sm px-4 py-2.5 min-w-0">
+            ${lang ? `<div class="text-[10px] ${scene === 'embedding' ? 'text-gray-500' : 'text-white/50'} mb-1.5 uppercase tracking-wider">${lang}</div>` : ''}
+            <pre class="text-xs font-mono leading-relaxed whitespace-pre-wrap break-all">${esc(text)}</pre>
+        </div>`;
+    } else {
+        content = `<div class="text-sm ${textCls} leading-relaxed ${bg} rounded-xl rounded-tr-sm px-4 py-2.5">${esc(text)}</div>`;
+    }
+    div.innerHTML = `
+        <div class="max-w-[85%]">
+            ${content}
+        </div>
+        <div class="w-8 h-8 rounded-full bg-brand-500 flex items-center justify-center text-sm shrink-0 mt-0.5" title="You">
+            <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+        </div>`;
+    out.appendChild(div);
+    scrollBottom();
+}
+
+function appendFileBubble(file) {
+    const out = $('output');
+    const div = document.createElement('div');
+    div.className = 'fade-in flex items-start gap-2.5 justify-end';
+    const sizeStr = file.size > 1024 ? (file.size / 1024).toFixed(1) + ' KB' : file.size + ' B';
+    div.innerHTML = `
+        <div class="max-w-[85%]">
+            <div class="bg-brand-600 rounded-xl rounded-tr-sm px-4 py-3 min-w-[240px]">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-white/15 rounded-lg flex items-center justify-center text-xl shrink-0">📄</div>
+                    <div class="min-w-0 flex-1">
+                        <div class="text-sm font-medium text-white truncate">${esc(file.name)}</div>
+                        <div class="text-[10px] text-white/70 mt-0.5">${sizeStr}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="w-8 h-8 rounded-full bg-brand-500 flex items-center justify-center text-sm shrink-0 mt-0.5" title="You">
+            <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+        </div>`;
+    out.appendChild(div);
+    scrollBottom();
+}
+
+function appendAssistantBubble(id, scene) {
+    const out = $('output');
+    const div = document.createElement('div');
+    div.id = id;
+    div.className = 'fade-in flex items-start gap-2.5';
+    const avatarCls = (SCENES[scene] || {}).botAvatarCls || 'bg-gray-700 text-gray-300 border border-gray-600';
+    div.innerHTML = `
+        <div class="w-8 h-8 rounded-full ${avatarCls} flex items-center justify-center text-sm shrink-0 mt-0.5" title="Assistant">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+        </div>
+        <div class="flex-1 min-w-0">
+            <div id="${id}-content" class="text-sm text-gray-100 leading-relaxed bg-gray-900 rounded-xl rounded-tl-sm px-4 py-3 border border-gray-800 min-h-[2em]"></div>
+            <div id="${id}-tags" class="flex flex-wrap gap-1.5 mt-1.5"></div>
+            <div id="${id}-suggest" class="mt-2 space-y-1.5"></div>
+        </div>`;
+    out.appendChild(div);
+    scrollBottom();
+}
+
+function appendBubble(type, content) {
+    if (type === 'error') {
+        const out = $('output');
+        const div = document.createElement('div');
+        div.className = 'fade-in';
+        div.innerHTML = `<div class="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl p-3">Error: ${esc(content)}</div>`;
+        out.appendChild(div);
+        scrollBottom();
+    }
+}
+
+function appendAbortBubble(reason) {
+    const out = $('output');
+    const div = document.createElement('div');
+    div.className = 'fade-in flex items-start gap-2.5';
+    const msg = reason || '输出已被用户中断';
+    div.innerHTML = `
+        <div class="w-8 h-8 rounded-full bg-gray-700 text-gray-300 border border-gray-600 flex items-center justify-center text-sm shrink-0 mt-0.5" title="Assistant">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+        </div>
+        <div class="flex-1 min-w-0">
+            <div class="text-sm text-gray-100 leading-relaxed bg-gray-900 rounded-xl rounded-tl-sm px-4 py-3 border border-gray-800">
+                <div class="flex items-center gap-2 text-amber-400/80">
+                    <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    <span>${msg}</span>
+                </div>
+            </div>
+        </div>`;
+    out.appendChild(div);
+    scrollBottom();
+}
+
+function appendLoading(scene) {
+    const id = 'msg-' + (++msgCounter);
+    const div = document.createElement('div');
+    div.id = id;
+    div.className = 'fade-in flex items-start gap-2.5';
+    const avatarCls = (SCENES[scene || current] || {}).botAvatarCls || 'bg-gray-700 text-gray-300 border border-gray-600';
+    div.innerHTML = `
+        <div class="w-8 h-8 rounded-full ${avatarCls} flex items-center justify-center text-sm shrink-0 mt-0.5">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+        </div>
+        <div class="flex items-center gap-2 py-3"><span class="loader"></span><span class="text-gray-500 text-xs">Processing...</span></div>`;
+    $('output').appendChild(div);
+    scrollBottom();
+    return id;
+}
+
+function renderUsageTags(msgId, usage, model) {
+    const el = $(`${msgId}-tags`); if (!el) return;
+    const items = [
+        model ? { icon: '🤖', label: 'Model', value: model, cls: 'bg-gray-800 text-gray-200 border-gray-700' } : null,
+        usage.prompt_tokens != null ? { icon: '↗', label: 'Prompt', value: usage.prompt_tokens, cls: 'bg-gray-800 text-gray-200 border-gray-700' } : null,
+        usage.completion_tokens != null ? { icon: '↘', label: 'Completion', value: usage.completion_tokens, cls: 'bg-gray-800 text-gray-200 border-gray-700' } : null,
+        usage.total_tokens != null ? { icon: 'Σ', label: 'Total', value: usage.total_tokens, cls: 'bg-brand-500/15 text-brand-300 border-brand-500/30' } : null,
+    ].filter(Boolean);
+    el.innerHTML = items.map(t => `<span class="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md border ${t.cls}">
+        <span class="opacity-50">${t.icon}</span><span class="opacity-60">${t.label}</span><span class="font-mono font-medium">${t.value}</span>
+    </span>`).join('');
+}
+
+function renderSuggestions(msgId, suggestions) {
+    const el = $(`${msgId}-suggest`); if (!el || !suggestions.length) return;
+    const icons = ['💡', '🔍', '📊', '🎯'];
+    el.innerHTML = `<div class="flex items-center gap-2 mb-2.5 px-0.5">
+        <div class="flex items-center justify-center w-5 h-5 rounded-md bg-brand-500/15 text-brand-400">
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        </div>
+        <span class="text-xs text-gray-400 font-medium">继续追问</span>
+    </div>` +
+        suggestions.map((s, i) => `<div onclick="askSuggestion(this)" data-text="${esc(s)}"
+            class="suggest-card bg-gray-900/60 border border-gray-800 rounded-lg pl-3.5 pr-3 py-2.5 flex items-start gap-2.5">
+            <span class="text-sm shrink-0 mt-px opacity-50">${icons[i] || '💬'}</span>
+            <span class="text-xs text-gray-300 leading-relaxed">${esc(s)}</span>
+        </div>`).join('');
+    scrollBottom();
+}
+
+function askSuggestion(btn) {
+    $('detail-input').value = btn.dataset.text; $('detail-input')._dirty = true;
+    send(btn.dataset.text);
+}
+
+function removeMsg(id) { $(id)?.remove(); }
+function scrollBottom() { const c = $('output').parentElement; c.scrollTop = c.scrollHeight; }
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+$('detail-input').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } });
+
+selectScene('chat');
+</script>
+</body>
+</html>
