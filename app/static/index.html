@@ -1222,6 +1222,8 @@ async function send(overrideText, fileInfo, isPoem, isLyrics) {
         } else {
             assistantMsg = await sendJson(s, text, sendScene, _abortCtrl.signal);
         }
+        // If scene switch happened during streaming, mark as aborted
+        if (_abortedScene === sendScene) assistantMsg.aborted = true;
         // Handle abort that was caught inside stream functions
         if (assistantMsg.aborted) {
             document.querySelectorAll('#output .cursor-blink').forEach(el => el.classList.remove('cursor-blink'));
