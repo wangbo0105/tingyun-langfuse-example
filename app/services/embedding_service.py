@@ -31,3 +31,29 @@ def create_embedding(text: str, model: str | None = None, dimensions: int | None
             "total_tokens": response.usage.total_tokens,
         },
     }
+
+
+def create_full_embedding(text: str, model: str | None = None, dimensions: int | None = None) -> dict:
+    """Return the full embedding vector (not truncated) for Milvus store/search."""
+    kwargs = dict(
+        model=model or settings.embedding_model,
+        input=[text],
+        name="text-embedding-full",
+        metadata={"langfuse_tags": ["embedding"]},
+    )
+    if dimensions:
+        kwargs["dimensions"] = dimensions
+
+    response = _client.embeddings.create(**kwargs)
+
+    data = response.data[0]
+    return {
+        "embedding": data.embedding,
+        "total_dimensions": len(data.embedding),
+        "model": response.model,
+        "dimensions": dimensions,
+        "usage": {
+            "prompt_tokens": response.usage.prompt_tokens,
+            "total_tokens": response.usage.total_tokens,
+        },
+    }

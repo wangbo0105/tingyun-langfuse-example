@@ -22,6 +22,10 @@ CONFIG_FIELDS = [
     ("Langfuse Public Key", "LANGFUSE_PUBLIC_KEY", True, "text"),
     ("Langfuse Secret Key", "LANGFUSE_SECRET_KEY", True, "text"),
     ("Langfuse Host", "LANGFUSE_HOST", False, "text"),
+    ("Milvus Host", "MILVUS_HOST", False, "text"),
+    ("Milvus Port", "MILVUS_PORT", False, "text"),
+    ("Milvus Collection", "MILVUS_COLLECTION", False, "text"),
+    ("Milvus Dimensions", "MILVUS_DIMENSIONS", False, "text"),
 ]
 
 
@@ -123,5 +127,8 @@ def _update_live_clients():
 
         import langfuse
         langfuse.Langfuse(public_key=s.langfuse_public_key, secret_key=s.langfuse_secret_key, host=s.langfuse_host)
+
+        import app.services.milvus_service as ms
+        ms.reset_client()
     except Exception:
         pass

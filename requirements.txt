@@ -5,3 +5,4 @@ langfuse>=2.57.0
 pydantic-settings>=2.7.0
 python-dotenv>=1.0.0
 tzdata>=2024.1
+pymilvus>=2.4.0

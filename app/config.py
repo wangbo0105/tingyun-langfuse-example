@@ -22,5 +22,11 @@ class Settings(BaseSettings):
     langfuse_secret_key: str = ""
     langfuse_host: str = "https://us.cloud.langfuse.com"
 
+    # Milvus
+    milvus_host: str = "localhost"
+    milvus_port: int = 19530
+    milvus_collection: str = "text_embeddings"
+    milvus_dimensions: int = 1024
+
 
 settings = Settings()
