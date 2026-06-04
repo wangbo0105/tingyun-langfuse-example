@@ -283,13 +283,14 @@ const $ = id => document.getElementById(id);
 const SCENES = {
     chat: {
         title: 'Chat', color: 'blue', btnText: '发送', placeholder: '输入消息...',
-        stream: true, showSystem: true, showParams: true, showDimensions: false, showThinking: true,
+        showSystem: true, showParams: true, showDimensions: false, showThinking: true, showStreaming: true,
         defaultInput: '',
         models: ['', 'qwen3.5-plus', 'qwen-max', 'qwen-plus', 'qwen-turbo', 'qwen-long', 'qwen-vl-max'],
         defaultModel: 'qwen3.5-plus',
         botAvatarCls: 'bg-blue-500/20 text-blue-300 border border-blue-500/30',
 
-        url: '/api/chat/stream',
+        get stream() { return $('cfg-streaming')?.value !== 'sync'; },
+        get url() { return this.stream ? '/api/chat/stream' : '/api/chat'; },
         buildBody: v => {
             const body = {
                 message: v, model: $('cfg-model').value || null,
@@ -1043,6 +1044,7 @@ function selectScene(type) {
     $('param-top_p').style.display = s.showParams ? '' : 'none';
     $('param-max_tokens').style.display = s.showParams ? '' : 'none';
     $('param-thinking').style.display = s.showThinking ? '' : 'none';
+    $('param-streaming').style.display = s.showStreaming ? '' : 'none';
     $('param-dimensions').style.display = s.showDimensions ? 'block' : 'none';
     $('param-dimensions').classList.toggle('hidden', !s.showDimensions);
     if (s.showDimensions && !$('cfg-dimensions').value) $('cfg-dimensions').value = '1024';
@@ -1630,10 +1632,15 @@ async function sendJson(s, text, scene, signal) {
 
 // ---- Format results per scene ----
 function formatResult(scene, data) {
+    if (scene === 'chat') return fmtChat(data);
     if (scene === 'agent') return fmtAgent(data);
     if (scene === 'tools') return fmtTools(data);
     if (scene === 'embedding') return fmtEmbedding(data);
     return `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+}
+
+function fmtChat(data) {
+    return `<div class="md-content text-sm text-gray-100 leading-relaxed">${md(data.content || '')}</div>`;
 }
 
 function fmtAgent(data) {

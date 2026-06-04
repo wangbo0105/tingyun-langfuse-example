@@ -4,6 +4,7 @@ from typing import Generator
 from openai import OpenAI
 
 from app.config import settings
+from app.services.stream_utils import CancelToken, cancellable_stream
 
 client = OpenAI(
     api_key=settings.openai_api_key,
@@ -60,6 +61,7 @@ def chat_stream(
     max_tokens: int | None = None,
     top_p: float = 1.0,
     thinking: str | bool | None = None,
+    cancel: CancelToken | None = None,
 ) -> Generator[str, None, None]:
     _model = model or settings.openai_model
     kwargs = dict(
@@ -79,8 +81,16 @@ def chat_stream(
     reasoning_text = ""
     thinking_ended = False
     finish_reason = None
-    stream = client.chat.completions.create(**kwargs)
-    for chunk in stream:
+    openai_stream = client.chat.completions.create(**kwargs)
+
+    # Wrap with cancellable iterator — on cancel, close() the OpenAI stream
+    chunk_iter = cancellable_stream(
+        openai_stream,
+        cancel or CancelToken(),
+        on_cancel=openai_stream.close,
+    )
+
+    for chunk in chunk_iter:
         data = {}
         if chunk.choices:
             delta = chunk.choices[0].delta
