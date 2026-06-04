@@ -1,3 +1,5 @@
+from typing import Optional
+
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
@@ -14,11 +16,13 @@ class ChatRequest(BaseModel):
     temperature: float = Field(default=0.7, ge=0, le=2)
     max_tokens: int | None = Field(default=None, ge=1, le=128000)
     top_p: float = Field(default=1.0, ge=0, le=1)
+    thinking: Optional[str | bool] = None
 
 
 class ChatResponse(BaseModel):
     content: str
     model: str
+    finish_reason: str | None = None
     usage: dict
 
 
@@ -31,6 +35,7 @@ def chat_endpoint(req: ChatRequest):
         temperature=req.temperature,
         max_tokens=req.max_tokens,
         top_p=req.top_p,
+        thinking=req.thinking,
     )
     return ChatResponse(**result)
 
@@ -44,5 +49,6 @@ def chat_stream_endpoint(req: ChatRequest):
         temperature=req.temperature,
         max_tokens=req.max_tokens,
         top_p=req.top_p,
+        thinking=req.thinking,
     )
     return StreamingResponse(generator, media_type="text/event-stream")

@@ -1,10 +1,11 @@
 import json
 from typing import Generator
 
-from app.config import settings
-from app.langfuse_compat import get_openai_client
+from openai import OpenAI
 
-client = get_openai_client(
+from app.config import settings
+
+client = OpenAI(
     api_key=settings.openai_api_key,
     base_url=settings.openai_base_url,
 )
@@ -25,23 +26,24 @@ def chat(
     temperature: float = 0.7,
     max_tokens: int | None = None,
     top_p: float = 1.0,
+    thinking: str | bool | None = None,
 ) -> dict:
     kwargs = dict(
         model=model or settings.openai_model,
         messages=_build_messages(message, system_prompt),
         temperature=temperature,
         top_p=top_p,
-        name="chat-completion",
-        metadata={"langfuse_tags": ["chat"]},
     )
     if max_tokens:
         kwargs["max_tokens"] = max_tokens
+    _apply_thinking(kwargs, thinking)
 
     response = client.chat.completions.create(**kwargs)
     choice = response.choices[0]
     return {
         "content": choice.message.content,
         "model": response.model,
+        "finish_reason": choice.finish_reason,
         "usage": {
             "prompt_tokens": response.usage.prompt_tokens,
             "completion_tokens": response.usage.completion_tokens,
@@ -57,6 +59,7 @@ def chat_stream(
     temperature: float = 0.7,
     max_tokens: int | None = None,
     top_p: float = 1.0,
+    thinking: str | bool | None = None,
 ) -> Generator[str, None, None]:
     _model = model or settings.openai_model
     kwargs = dict(
@@ -66,24 +69,25 @@ def chat_stream(
         top_p=top_p,
         stream=True,
         stream_options={"include_usage": True},
-        name="chat-completion",
-        metadata={"langfuse_tags": ["chat"]},
     )
     if max_tokens:
         kwargs["max_tokens"] = max_tokens
-    # Enable thinking mode for models that support it (qwen3.5 etc.)
-    extra_body = kwargs.get("extra_body", {})
-    extra_body["enable_thinking"] = True
-    kwargs["extra_body"] = extra_body
+    _apply_thinking(kwargs, thinking)
+    thinking_enabled = thinking is not None and thinking is not False and thinking != "off" and thinking != "none"
 
     full_text = ""
     reasoning_text = ""
     thinking_ended = False
+    finish_reason = None
     stream = client.chat.completions.create(**kwargs)
     for chunk in stream:
         data = {}
         if chunk.choices:
             delta = chunk.choices[0].delta
+            # Capture finish_reason from the chunk
+            fr = chunk.choices[0].finish_reason
+            if fr:
+                finish_reason = fr
             # Detect reasoning_content via multiple access patterns
             reasoning = None
             if hasattr(delta, "reasoning_content") and delta.reasoning_content:
@@ -100,11 +104,14 @@ def chat_stream(
                     yield f"data: {json.dumps({'thinking_done': True}, ensure_ascii=False)}\n\n"
                 full_text += delta.content
                 data["content"] = delta.content
-            # If chunk has no content and no reasoning, it's a thinking-phase heartbeat
-            elif not reasoning and reasoning_text and not thinking_ended:
-                data["thinking_heartbeat"] = True
-            elif not reasoning and not delta.content and not reasoning_text and not full_text:
-                data["thinking_heartbeat"] = True
+            # Only send thinking heartbeat when thinking is enabled
+            elif thinking_enabled:
+                # Thinking-phase heartbeat during active reasoning
+                if not reasoning and reasoning_text and not thinking_ended:
+                    data["thinking_heartbeat"] = True
+                # Initial heartbeat while waiting for first response
+                elif not reasoning and not delta.content and not reasoning_text and not full_text:
+                    data["thinking_heartbeat"] = True
         if hasattr(chunk, "usage") and chunk.usage:
             data["usage"] = {
                 "prompt_tokens": chunk.usage.prompt_tokens,
@@ -116,6 +123,10 @@ def chat_stream(
             yield f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
     if reasoning_text and not thinking_ended:
         yield f"data: {json.dumps({'thinking_done': True}, ensure_ascii=False)}\n\n"
+
+    # Send finish_reason before suggestions
+    if finish_reason:
+        yield f"data: {json.dumps({'finish_reason': finish_reason}, ensure_ascii=False)}\n\n"
 
     # Generate follow-up questions
     suggestions = _generate_suggestions(message, full_text, _model, temperature)
@@ -156,3 +167,35 @@ def _generate_suggestions(question: str, answer: str, model: str, temperature: f
     except Exception:
         pass
     return []
+
+
+# Thinking budget mapping: string level -> token budget
+_THINKING_BUDGET_MAP = {
+    "none": 0,
+    "minimal": 1024,
+    "low": 4096,
+    "medium": 16384,
+    "high": 65536,
+    "xhigh": 131072,
+}
+
+
+def _apply_thinking(kwargs: dict, thinking: str | bool | None) -> None:
+    """Apply thinking configuration to the OpenAI API call kwargs.
+
+    Args:
+        thinking: False to disable, a string level ("none"/"minimal"/"low"/"medium"/"high"/"xhigh"),
+                  or None/True to use defaults. When a string level is given, enable_thinking is set
+                  to True and thinking_budget is set accordingly.
+    """
+    extra_body = kwargs.get("extra_body", {})
+    if thinking is False or thinking == "none" or thinking == "off":
+        extra_body["enable_thinking"] = False
+    elif thinking in _THINKING_BUDGET_MAP:
+        extra_body["enable_thinking"] = True
+        extra_body["thinking_budget"] = _THINKING_BUDGET_MAP[thinking]
+    elif thinking is True:
+        extra_body["enable_thinking"] = True
+    # None means no thinking config, leave it to the model default
+    if extra_body:
+        kwargs["extra_body"] = extra_body

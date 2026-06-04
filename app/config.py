@@ -17,11 +17,6 @@ class Settings(BaseSettings):
     embedding_model: str = "text-embedding-3-small"
     embedding_models: str = ""
 
-    # Langfuse
-    langfuse_public_key: str = ""
-    langfuse_secret_key: str = ""
-    langfuse_host: str = "https://us.cloud.langfuse.com"
-
     # Milvus
     milvus_host: str = "localhost"
     milvus_port: int = 19530

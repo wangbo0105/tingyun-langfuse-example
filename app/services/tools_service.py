@@ -6,11 +6,11 @@ try:
 except ImportError:
     ZoneInfo = None
 
-from app.config import settings
-from app.langfuse_compat import get_langfuse, get_openai_client
+from openai import OpenAI
 
-langfuse = get_langfuse()
-client = get_openai_client(
+from app.config import settings
+
+client = OpenAI(
     api_key=settings.openai_api_key,
     base_url=settings.openai_base_url,
 )
@@ -160,68 +160,53 @@ def _execute_tool(name: str, args: dict) -> str:
 
 def tools_run(query: str, model: str | None = None, temperature: float = 0.7, top_p: float = 1.0) -> dict:
     _model = model or settings.openai_model
+    messages = [{"role": "user", "content": query}]
 
-    with langfuse.start_as_current_observation(
-        as_type="chain",
-        name="tool-calling-workflow",
-        input={"query": query},
-        metadata={"langfuse_tags": ["tools"]},
-    ) as root_span:
-        messages = [{"role": "user", "content": query}]
+    first_response = client.chat.completions.create(
+        model=_model,
+        messages=messages,
+        tools=TOOLS,
+        temperature=temperature,
+        top_p=top_p,
+    )
 
-        first_response = client.chat.completions.create(
+    choice = first_response.choices[0]
+    tool_results = []
+    first_finish_reason = choice.finish_reason
+
+    if choice.finish_reason == "tool_calls":
+        messages.append(choice.message)
+
+        for tool_call in choice.message.tool_calls:
+            fn_name = tool_call.function.name
+            fn_args = json.loads(tool_call.function.arguments)
+            result = _execute_tool(fn_name, fn_args)
+
+            tool_results.append({
+                "tool": fn_name,
+                "arguments": fn_args,
+                "result": json.loads(result),
+            })
+            messages.append({
+                "role": "tool",
+                "tool_call_id": tool_call.id,
+                "content": result,
+            })
+
+        final_response = client.chat.completions.create(
             model=_model,
             messages=messages,
-            tools=TOOLS,
             temperature=temperature,
             top_p=top_p,
-            name="tool-decision",
         )
+        final_answer = final_response.choices[0].message.content
+        final_finish_reason = final_response.choices[0].finish_reason
+    else:
+        final_answer = choice.message.content
+        final_finish_reason = first_finish_reason
 
-        choice = first_response.choices[0]
-        tool_results = []
-
-        if choice.finish_reason == "tool_calls":
-            messages.append(choice.message)
-
-            for tool_call in choice.message.tool_calls:
-                fn_name = tool_call.function.name
-                fn_args = json.loads(tool_call.function.arguments)
-
-                with langfuse.start_as_current_observation(
-                    as_type="tool",
-                    name=f"tool-{fn_name}",
-                    input={"arguments": fn_args},
-                ) as tool_span:
-                    result = _execute_tool(fn_name, fn_args)
-                    tool_span.update(output={"result": json.loads(result)})
-
-                tool_results.append({
-                    "tool": fn_name,
-                    "arguments": fn_args,
-                    "result": json.loads(result),
-                })
-                messages.append({
-                    "role": "tool",
-                    "tool_call_id": tool_call.id,
-                    "content": result,
-                })
-
-            final_response = client.chat.completions.create(
-                model=_model,
-                messages=messages,
-                temperature=temperature,
-                top_p=top_p,
-                name="tool-summary",
-            )
-            final_answer = final_response.choices[0].message.content
-        else:
-            final_answer = choice.message.content
-
-        root_span.update(output={"answer": final_answer})
-
-    langfuse.flush()
     return {
         "tool_calls": tool_results,
         "final_answer": final_answer,
+        "finish_reason": final_finish_reason,
     }

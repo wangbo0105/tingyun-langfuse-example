@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TingYun Langfuse</title>
+    <title>TingYun OpenAI</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%234f46e5'/><text x='16' y='22' text-anchor='middle' font-family='sans-serif' font-weight='bold' font-size='14' fill='white'>TY</text></svg>" type="image/svg+xml">
     <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -87,12 +87,12 @@
     <div class="px-6 h-12 flex items-center justify-between">
         <div class="flex items-center gap-3">
             <div class="w-7 h-7 bg-brand-500 rounded-lg flex items-center justify-center font-bold text-white text-xs">TY</div>
-            <span class="text-base font-semibold">TingYun Langfuse</span>
+            <span class="text-base font-semibold">TingYun OpenAI</span>
         </div>
-        <a href="https://us.cloud.langfuse.com/" target="_blank"
+        <a href="https://platform.openai.com/" target="_blank"
            class="flex items-center gap-2 text-xs text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 px-3 py-1.5 rounded-lg transition">
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
-            Langfuse Cloud
+            OpenAI Platform
         </a>
     </div>
 </nav>
@@ -189,6 +189,26 @@
                 <input id="cfg-max_tokens" type="number" value="2048" min="1"
                     class="w-full bg-gray-800/60 border border-gray-700 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-brand-500">
             </div>
+            <div id="param-thinking">
+                <label class="text-[10px] text-gray-500 mb-0.5 block">深度思考</label>
+                <select id="cfg-thinking"
+                    class="w-full bg-gray-800 border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-brand-500">
+                    <option value="off" selected>关闭</option>
+                    <option value="minimal">Minimal</option>
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                    <option value="xhigh">XHigh</option>
+                </select>
+            </div>
+            <div id="param-streaming">
+                <label class="text-[10px] text-gray-500 mb-0.5 block">输出模式</label>
+                <select id="cfg-streaming"
+                    class="w-full bg-gray-800 border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-brand-500">
+                    <option value="stream" selected>流式输出</option>
+                    <option value="sync">同步输出</option>
+                </select>
+            </div>
             <div id="param-dimensions" class="hidden">
                 <label class="text-[10px] text-gray-500 mb-0.5 block">Dimensions</label>
                 <input id="cfg-dimensions" type="number" value="1024" min="64" max="8192" step="64"
@@ -215,7 +235,7 @@
 
 <!-- Footer -->
 <footer class="shrink-0 border-t border-gray-800 bg-gray-950 px-6 py-2.5 flex items-center justify-between">
-    <span class="text-[10px] text-gray-600">TingYun Langfuse 演示项目</span>
+    <span class="text-[10px] text-gray-600">TingYun OpenAI 演示项目</span>
     <span class="text-[10px] text-gray-600">❯ Powered by <a href="https://www.tingyun.com" target="_blank" class="text-brand-400 hover:text-brand-300 transition">TingYun</a> & Agent Team</span>
 </footer>
 
@@ -243,8 +263,8 @@
         <div class="flex items-center gap-3">
             <div class="w-7 h-7 bg-orange-500/20 text-orange-400 rounded-lg flex items-center justify-center text-sm">📄</div>
             <div>
-                <h2 class="text-sm font-semibold text-white">Langfuse 接入听云 Python 探针 — 技术方案</h2>
-                <p class="text-[10px] text-gray-500 mt-0.5">langfuse-integration.md</p>
+                <h2 class="text-sm font-semibold text-white">OpenAI 接入听云 Python 探针 — 技术方案</h2>
+                <p class="text-[10px] text-gray-500 mt-0.5">license.txt</p>
             </div>
         </div>
         <button onclick="closeDocModal()" class="text-gray-400 hover:text-white transition p-1 rounded-lg hover:bg-gray-800">
@@ -263,23 +283,28 @@ const $ = id => document.getElementById(id);
 const SCENES = {
     chat: {
         title: 'Chat', color: 'blue', btnText: '发送', placeholder: '输入消息...',
-        stream: true, showSystem: true, showParams: true, showDimensions: false,
+        stream: true, showSystem: true, showParams: true, showDimensions: false, showThinking: true,
         defaultInput: '',
         models: ['', 'qwen3.5-plus', 'qwen-max', 'qwen-plus', 'qwen-turbo', 'qwen-long', 'qwen-vl-max'],
         defaultModel: 'qwen3.5-plus',
         botAvatarCls: 'bg-blue-500/20 text-blue-300 border border-blue-500/30',
 
         url: '/api/chat/stream',
-        buildBody: v => ({
-            message: v, model: $('cfg-model').value || null,
-            system_prompt: $('cfg-system_prompt').value || null,
-            temperature: parseFloat($('cfg-temperature').value),
-            max_tokens: $('cfg-max_tokens').value ? parseInt($('cfg-max_tokens').value) : null,
-            top_p: parseFloat($('cfg-top_p').value),
-        }),
+        buildBody: v => {
+            const body = {
+                message: v, model: $('cfg-model').value || null,
+                system_prompt: $('cfg-system_prompt').value || null,
+                temperature: parseFloat($('cfg-temperature').value),
+                max_tokens: $('cfg-max_tokens').value ? parseInt($('cfg-max_tokens').value) : null,
+                top_p: parseFloat($('cfg-top_p').value),
+            };
+            const thinking = $('cfg-thinking').value;
+            if (thinking) body.thinking = thinking;
+            return body;
+        },
         welcome: {
             icon: '💬', iconBg: 'bg-blue-500/20',
-            title: 'TingYun Langfuse Playground',
+            title: 'TingYun OpenAI Playground',
             desc: '实时流式响应，逐字呈现模型的思考轨迹。挑选一个话题，开启对话。',
             cards: [
                 {
@@ -595,7 +620,7 @@ const SCENES = {
     embedding: {
         title: 'Embedding', color: 'orange', btnText: '生成', placeholder: '输入文本...',
         stream: false, showSystem: false, showParams: false, showDimensions: true,
-        defaultInput: 'TingYun Langfuse 是一个基于 Langfuse 的 LLM 应用可观测性演示平台。',
+        defaultInput: 'TingYun OpenAI 是一个基于 OpenAI SDK 的 LLM 应用可观测性演示平台。',
         models: ['text-embedding-v1', 'text-embedding-v2', 'text-embedding-v3', 'text-embedding-v4'],
         defaultModel: 'text-embedding-v3',
         botAvatarCls: 'bg-orange-500/20 text-orange-300 border border-orange-500/30',
@@ -955,7 +980,7 @@ function renderMessage(msg) {
     } else if (msg.data) {
         contentEl.innerHTML = formatResult(msg.scene || current, msg.data);
     }
-    if (msg.usage && msg.scene !== 'embedding') renderUsageTags(id, msg.usage, msg.model || '');
+    if (msg.usage && msg.scene !== 'embedding') renderUsageTags(id, msg.usage, msg.model || '', msg.finishReason || null);
     if (msg.suggestions && msg.suggestions.length) renderSuggestions(id, msg.suggestions);
 }
 
@@ -1017,6 +1042,7 @@ function selectScene(type) {
     $('param-temperature').style.display = s.showParams ? '' : 'none';
     $('param-top_p').style.display = s.showParams ? '' : 'none';
     $('param-max_tokens').style.display = s.showParams ? '' : 'none';
+    $('param-thinking').style.display = s.showThinking ? '' : 'none';
     $('param-dimensions').style.display = s.showDimensions ? 'block' : 'none';
     $('param-dimensions').classList.toggle('hidden', !s.showDimensions);
     if (s.showDimensions && !$('cfg-dimensions').value) $('cfg-dimensions').value = '1024';
@@ -1107,7 +1133,6 @@ function renderConfigFields(fields) {
     const groups = [
         { title: 'Chat / Agent / Chain', keys: ['OPENAI_API_KEY', 'OPENAI_BASE_URL', 'OPENAI_MODEL', 'OPENAI_MODELS'] },
         { title: 'Embedding', keys: ['EMBEDDING_API_KEY', 'EMBEDDING_BASE_URL', 'EMBEDDING_MODEL', 'EMBEDDING_MODELS'] },
-        { title: 'Langfuse', keys: ['LANGFUSE_PUBLIC_KEY', 'LANGFUSE_SECRET_KEY', 'LANGFUSE_HOST'] },
         { title: 'Milvus', keys: ['MILVUS_HOST', 'MILVUS_PORT', 'MILVUS_COLLECTION', 'MILVUS_DIMENSIONS'] },
     ];
     let html = '';
@@ -1404,7 +1429,7 @@ async function sendStream(s, text, scene, signal) {
     if (!res.ok) { const err = await res.json().catch(() => ({ detail: res.statusText })); throw new Error(err.detail || JSON.stringify(err)); }
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
-    let buffer = '', fullText = '', fullThinking = '', usage = null, model = '', suggestions = [];
+    let buffer = '', fullText = '', fullThinking = '', usage = null, model = '', suggestions = [], finishReason = null;
     let thinkingEl = null, answerEl = null, thinkingPhase = false;
     try {
     while (true) {
@@ -1467,6 +1492,7 @@ async function sendStream(s, text, scene, signal) {
                     }
                 }
                 if (d.usage) { usage = d.usage; model = d.model || ''; }
+                if (d.finish_reason) { finishReason = d.finish_reason; }
                 if (d.suggestions) { suggestions = d.suggestions; }
             } catch {}
         }
@@ -1477,10 +1503,10 @@ async function sendStream(s, text, scene, signal) {
     if (current === scene && contentEl) {
         contentEl.classList.remove('cursor-blink');
         if (answerEl) answerEl.classList.remove('cursor-blink');
-        if (usage) renderUsageTags(id, usage, model);
+        if (usage) renderUsageTags(id, usage, model, finishReason);
         if (suggestions.length) renderSuggestions(id, suggestions);
     }
-    return { role: 'assistant', scene, content: fullText, usage, model, suggestions };
+    return { role: 'assistant', scene, content: fullText, usage, model, suggestions, finishReason };
 }
 
 // ---- Agent Stream ----
@@ -1597,9 +1623,9 @@ async function sendJson(s, text, scene, signal) {
         const id = 'msg-' + (++msgCounter);
         appendAssistantBubble(id, scene);
         $(`${id}-content`).innerHTML = formatResult(scene, data);
-        if (scene !== 'embedding' && data.usage) renderUsageTags(id, data.usage, data.model || '');
+        if (scene !== 'embedding' && data.usage) renderUsageTags(id, data.usage, data.model || '', data.finish_reason || null);
     }
-    return { role: 'assistant', scene, data, usage: data.usage || null, model: data.model || '' };
+    return { role: 'assistant', scene, data, usage: data.usage || null, model: data.model || '', finishReason: data.finish_reason || null };
 }
 
 // ---- Format results per scene ----
@@ -1892,10 +1918,11 @@ function appendLoading(scene) {
     return id;
 }
 
-function renderUsageTags(msgId, usage, model) {
+function renderUsageTags(msgId, usage, model, finishReason) {
     const el = $(`${msgId}-tags`); if (!el) return;
     const items = [
         model ? { icon: '🤖', label: 'Model', value: model, cls: 'bg-gray-800 text-gray-200 border-gray-700' } : null,
+        finishReason ? { icon: '🏁', label: 'Finish', value: finishReason, cls: 'bg-amber-500/15 text-amber-300 border-amber-500/30' } : null,
         usage.prompt_tokens != null ? { icon: '↗', label: 'Prompt', value: usage.prompt_tokens, cls: 'bg-gray-800 text-gray-200 border-gray-700' } : null,
         usage.completion_tokens != null ? { icon: '↘', label: 'Completion', value: usage.completion_tokens, cls: 'bg-gray-800 text-gray-200 border-gray-700' } : null,
         usage.total_tokens != null ? { icon: 'Σ', label: 'Total', value: usage.total_tokens, cls: 'bg-brand-500/15 text-brand-300 border-brand-500/30' } : null,
@@ -1944,7 +1971,7 @@ async function openDocModal() {
 
     if (!$('doc-content').dataset.loaded) {
         try {
-            const res = await fetch('/api/file/langfuse-integration');
+            const res = await fetch('/api/file/license');
             if (!res.ok) throw new Error(res.statusText);
             const data = await res.json();
             wrapper.innerHTML = md(data.content);

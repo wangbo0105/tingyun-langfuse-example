@@ -6,7 +6,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.routers import chat, agent, tools, embedding, files, config
 
-app = FastAPI(title="Langfuse Demo", version="1.0.0")
+app = FastAPI(title="OpenAI Demo", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,

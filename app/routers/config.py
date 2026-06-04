@@ -19,9 +19,6 @@ CONFIG_FIELDS = [
     ("Embedding Base URL", "EMBEDDING_BASE_URL", False, "text"),
     ("Embedding 默认模型", "EMBEDDING_MODEL", False, "text"),
     ("Embedding 模型列表", "EMBEDDING_MODELS", False, "tags"),
-    ("Langfuse Public Key", "LANGFUSE_PUBLIC_KEY", True, "text"),
-    ("Langfuse Secret Key", "LANGFUSE_SECRET_KEY", True, "text"),
-    ("Langfuse Host", "LANGFUSE_HOST", False, "text"),
     ("Milvus Host", "MILVUS_HOST", False, "text"),
     ("Milvus Port", "MILVUS_PORT", False, "text"),
     ("Milvus Collection", "MILVUS_COLLECTION", False, "text"),
@@ -122,15 +119,8 @@ def _update_live_clients():
         ts.client.base_url = s.openai_base_url
 
         import app.services.embedding_service as es
-        es.client.api_key = s.embedding_api_key
-        es.client.base_url = s.embedding_base_url
-
-        from app.langfuse_compat import reinit_langfuse
-        reinit_langfuse(
-            public_key=s.langfuse_public_key,
-            secret_key=s.langfuse_secret_key,
-            host=s.langfuse_host,
-        )
+        es._client.api_key = s.embedding_api_key or s.openai_api_key
+        es._client.base_url = s.embedding_base_url
 
         import app.services.milvus_service as ms
         ms.reset_client()

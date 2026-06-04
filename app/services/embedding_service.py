@@ -1,7 +1,8 @@
-from app.config import settings
-from app.langfuse_compat import get_openai_client
+from openai import OpenAI
 
-_client = get_openai_client(
+from app.config import settings
+
+_client = OpenAI(
     api_key=settings.embedding_api_key or settings.openai_api_key,
     base_url=settings.embedding_base_url,
 )
@@ -11,8 +12,6 @@ def create_embedding(text: str, model: str | None = None, dimensions: int | None
     kwargs = dict(
         model=model or settings.embedding_model,
         input=[text],
-        name="text-embedding",
-        metadata={"langfuse_tags": ["embedding"]},
     )
     if dimensions:
         kwargs["dimensions"] = dimensions
@@ -37,8 +36,6 @@ def create_full_embedding(text: str, model: str | None = None, dimensions: int |
     kwargs = dict(
         model=model or settings.embedding_model,
         input=[text],
-        name="text-embedding-full",
-        metadata={"langfuse_tags": ["embedding"]},
     )
     if dimensions:
         kwargs["dimensions"] = dimensions

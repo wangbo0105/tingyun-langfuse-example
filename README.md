@@ -1,6 +1,6 @@
-# TingYun Langfuse Example
+# TingYun OpenAI Example
 
-基于 [Langfuse](https://langfuse.com/) Python SDK 的 LLM 应用可观测性演示项目。通过四个典型场景展示如何使用 Langfuse 对 LLM 调用链路进行全链路追踪、监控和分析。
+基于 OpenAI Python SDK 的 LLM 应用可观测性演示项目。通过四个典型场景展示如何使用听云探针对 LLM 调用链路进行全链路追踪、监控和分析。
 
 ## 场景介绍
 
@@ -21,7 +21,6 @@
 - **环境配置面板** — 左侧配置按钮可在线修改 `.env`，实时生效
 - **中断控制** — 输出过程中可随时中断，切换场景自动取消进行中的请求
 - **追问建议** — 每次回答后自动生成 3 条追问建议，一键继续对话
-- **Langfuse 全链路追踪** — 所有场景自动上报 trace 数据至 Langfuse Cloud
 
 ## 快速开始
 
@@ -62,11 +61,6 @@ EMBEDDING_API_KEY=sk-xxx
 EMBEDDING_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
 EMBEDDING_MODEL=text-embedding-v3
 EMBEDDING_MODELS=text-embedding-v1,text-embedding-v2,text-embedding-v3,text-embedding-v4
-
-# Langfuse
-LANGFUSE_PUBLIC_KEY=pk-xxx
-LANGFUSE_SECRET_KEY=sk-xxx
-LANGFUSE_HOST=https://us.cloud.langfuse.com
 ```
 
 > 也可以启动后在页面左下角「环境配置」面板中在线修改，保存后实时生效。
@@ -96,10 +90,10 @@ tingyun-langfuse-example/
 │   │   ├── config.py         # 环境配置读写接口
 │   │   └── files.py          # 文件读取接口
 │   └── services/
-│       ├── chat_service.py   # Chat 业务逻辑 + Langfuse tracing
-│       ├── agent_service.py  # Agent 三步推理 + Langfuse tracing
-│       ├── tools_service.py  # Tool 定义与执行 + Langfuse tracing
-│       └── embedding_service.py  # Embedding 向量化 + Langfuse tracing
+│       ├── chat_service.py   # Chat 业务逻辑
+│       ├── agent_service.py  # Agent 三步推理
+│       ├── tools_service.py  # Tool 定义与执行
+│       └── embedding_service.py  # Embedding 向量化
 ├── .env.example              # 环境变量模板
 ├── requirements.txt          # Python 依赖
 ├── run.py                    # 启动脚本
@@ -119,18 +113,9 @@ tingyun-langfuse-example/
 | GET  | `/api/config`       | 获取环境配置               |
 | PUT  | `/api/config`       | 更新环境配置（写入 .env 并热重载） |
 
-## Langfuse 观测类型映射
-
-| 场景        | Langfuse Span 类型                 | 说明                |
-|-----------|----------------------------------|-------------------|
-| Chat      | `generation`                     | 单次 LLM 调用         |
-| Agent     | `agent` > `generation` / `chain` | Agent 根节点 + 三步子节点 |
-| Chain     | `chain` > `tool`                 | Chain 编排 + 工具调用   |
-| Embedding | `generation`                     | Embedding 模型调用    |
-
 ## 技术栈
 
 - **后端**: FastAPI + Uvicorn
-- **LLM SDK**: Langfuse Python SDK（OpenAI 兼容模式）
+- **LLM SDK**: OpenAI Python SDK
 - **前端**: Tailwind CSS + Vanilla JS（单 HTML 文件）
 - **配置**: pydantic-settings + python-dotenv

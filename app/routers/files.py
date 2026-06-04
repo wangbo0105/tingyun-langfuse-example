@@ -4,7 +4,7 @@ from pathlib import Path
 router = APIRouter(prefix="/api/file", tags=["files"])
 
 DOCS_DIR = Path(__file__).resolve().parent.parent / "docs"
-ALLOWED_FILES = {"license": "license.txt", "langfuse-integration": "langfuse-integration.md"}
+ALLOWED_FILES = {"license": "license.txt", "os": "os.txt"}
 
 
 @router.get("/{name}")
