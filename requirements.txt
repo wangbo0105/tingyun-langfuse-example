@@ -1,7 +1,7 @@
 fastapi>=0.115.0
 uvicorn[standard]>=0.34.0
 openai>=1.60.0
-langfuse>=2.57.0
+langfuse>=4.7.1
 pydantic-settings>=2.7.0
 python-dotenv>=1.0.0
 tzdata>=2024.1

@@ -125,8 +125,12 @@ def _update_live_clients():
         es.client.api_key = s.embedding_api_key
         es.client.base_url = s.embedding_base_url
 
-        import langfuse
-        langfuse.Langfuse(public_key=s.langfuse_public_key, secret_key=s.langfuse_secret_key, host=s.langfuse_host)
+        from app.langfuse_compat import reinit_langfuse
+        reinit_langfuse(
+            public_key=s.langfuse_public_key,
+            secret_key=s.langfuse_secret_key,
+            host=s.langfuse_host,
+        )
 
         import app.services.milvus_service as ms
         ms.reset_client()

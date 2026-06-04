@@ -1,11 +1,10 @@
 import json
 from typing import Generator
 
-from langfuse.openai import OpenAI
-
 from app.config import settings
+from app.langfuse_compat import get_openai_client
 
-client = OpenAI(
+client = get_openai_client(
     api_key=settings.openai_api_key,
     base_url=settings.openai_base_url,
 )

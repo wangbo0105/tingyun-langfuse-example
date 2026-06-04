@@ -6,13 +6,11 @@ try:
 except ImportError:
     ZoneInfo = None
 
-from langfuse import get_client
-from langfuse.openai import OpenAI
-
 from app.config import settings
+from app.langfuse_compat import get_langfuse, get_openai_client
 
-langfuse = get_client()
-client = OpenAI(
+langfuse = get_langfuse()
+client = get_openai_client(
     api_key=settings.openai_api_key,
     base_url=settings.openai_base_url,
 )

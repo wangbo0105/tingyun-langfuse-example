@@ -1,8 +1,7 @@
-from langfuse.openai import OpenAI
-
 from app.config import settings
+from app.langfuse_compat import get_openai_client
 
-_client = OpenAI(
+_client = get_openai_client(
     api_key=settings.embedding_api_key or settings.openai_api_key,
     base_url=settings.embedding_base_url,
 )
